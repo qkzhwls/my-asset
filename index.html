@@ -111,13 +111,15 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>📊 자산 추적기<span class="v" id="verBadge">v2.9</span></h1>
+    <h1>📊 자산 추적기<span class="v" id="verBadge">v3.0</span></h1>
     <div class="hbtns">
       <button class="btn-p btn-sm" id="refreshBtn">↻ 시세 갱신</button>
+      <button class="icon" id="syncBtn" title="기기간 동기화 (불러오기)">☁</button>
       <button class="icon" id="gearBtn" title="설정">⚙</button>
     </div>
   </header>
   <div class="feedbar" id="feedbar">시트에서 시세 불러오는 중…</div>
+  <div class="feedbar" id="syncInfo" style="padding-top:0"></div>
 
   <div class="topnav">
     <button class="nav on" data-view="assets" id="navAssets">📊 자산 보기</button>
@@ -145,7 +147,7 @@
       <input id="sheetId" type="text" placeholder="스프레드시트 ID" autocomplete="off">
     </div>
     <div class="f" style="margin-bottom:10px">
-      <label>종목추가 URL (Apps Script · 웹→시트 쓰기, 선택)</label>
+      <label>Apps Script URL (종목추가 · 기기간 동기화)</label>
       <input id="writeUrl" type="text" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off">
     </div>
     <div class="row">
@@ -331,9 +333,52 @@ let priceMap = {}, names = [], fx = 1, asof = '';
 let curAcct = '';   // '' = 전체
 
 function load(k, def){ try{ return JSON.parse(localStorage.getItem(k)) ?? def; }catch(e){ return def; } }
-function save(){ localStorage.setItem(LS.buy,JSON.stringify(buys));
+function saveLocal(){ localStorage.setItem(LS.buy,JSON.stringify(buys));
   localStorage.setItem(LS.div,JSON.stringify(divs));
   localStorage.setItem(LS.set,JSON.stringify(settings)); }
+
+/* ---------- 기기간 동기화 (Apps Script 저장소) ---------- */
+let suppressSave=false, cloudTimer=null;
+function save(){ saveLocal(); if(!suppressSave && settings.writeUrl) scheduleCloudSave(); }
+function scheduleCloudSave(){ clearTimeout(cloudTimer); cloudTimer=setTimeout(cloudSave,1500); }
+function syncStamp(msg){ const el=$('syncInfo'); if(el) el.textContent='☁ '+msg+' · '+new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}); }
+function syncPayload(){ return {buys, divs, accounts:settings.accounts, cash:settings.cash, plans:settings.plans, excludeCash:!!settings.excludeCash, ts:Date.now()}; }
+function cloudSave(){
+  if(!settings.writeUrl) return;
+  fetch(settings.writeUrl,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'save',data:syncPayload()})})
+    .then(()=>syncStamp('저장됨')).catch(()=>syncStamp('저장 실패'));
+}
+function applyCloud(d){
+  suppressSave=true;
+  if(Array.isArray(d.buys)) buys=d.buys;
+  if(Array.isArray(d.divs)) divs=d.divs;
+  if(Array.isArray(d.accounts)&&d.accounts.length) settings.accounts=d.accounts;
+  if(d.cash&&typeof d.cash==='object') settings.cash=d.cash;
+  if(Array.isArray(d.plans)) settings.plans=d.plans;
+  if(typeof d.excludeCash==='boolean') settings.excludeCash=d.excludeCash;
+  runPlans();
+  saveLocal();
+  suppressSave=false;
+  $('exCash').checked=!!settings.excludeCash;
+  fillAccountUI(); toggleAcctField(); render();
+  cloudSave();                 // 정기매수 생성분 등 반영해 다시 업로드
+  syncStamp('동기화됨');
+}
+function cloudLoad(cb){
+  if(!settings.writeUrl){ if(cb)cb(false); return; }
+  syncStamp('불러오는 중…');
+  const s=document.createElement('script'); let done=false;
+  window.__syncCb=function(res){ done=true;
+    try{
+      if(res && res.ok && res.data){ applyCloud(res.data); if(cb)cb(true); }
+      else { cloudSave(); syncStamp('연결됨(이 기기 데이터 업로드)'); if(cb)cb(false); }
+    }catch(e){ syncStamp('동기화 오류'); if(cb)cb(false); }
+    s.remove();
+  };
+  s.onerror=()=>{ if(!done){ syncStamp('동기화 실패 (URL 확인)'); if(cb)cb(false);} s.remove(); };
+  s.src=settings.writeUrl+(settings.writeUrl.includes('?')?'&':'?')+'action=load&callback=__syncCb&_='+Date.now();
+  document.body.appendChild(s);
+}
 
 const acctOf = r => r.account || DEF_ACCT;
 function allAccounts(){
@@ -661,6 +706,7 @@ function setStatus(msg,type,show){ const s=$('setStatus'); s.textContent=msg;
 $('gearBtn').onclick=()=>openSettings();
 $('acctFilter').onchange=e=>{ curAcct=e.target.value; toggleAcctField(); render(); };
 $('exCash').onchange=e=>{ settings.excludeCash=e.target.checked; save(); render(); };
+$('syncBtn').onclick=()=>{ if(!settings.writeUrl){ setStatus('먼저 ⚙설정에서 Apps Script URL을 등록하세요','err',true); openSettings(true); return; } cloudLoad(); };
 $('addAcctBtn').onclick=()=>{ const n=addAccount($('newAcct').value); if(n){ $('newAcct').value=''; setStatus('계좌 추가: '+n,'ok',true);} };
 $('newAcct').onkeydown=e=>{ if(e.key==='Enter') $('addAcctBtn').click(); };
 $('bAddAcct').onclick=()=>{ const n=addAccount(prompt('새 계좌 이름')); if(n) $('bAccount').value=n; };
@@ -669,7 +715,8 @@ $('dAddAcct').onclick=()=>{ const n=addAccount(prompt('새 계좌 이름')); if(
 $('saveSettings').onclick=()=>{
   const v=$('sheetId').value.trim(); settings.sheetId=v||SHEET_ID_DEFAULT;
   settings.writeUrl=$('writeUrl').value.trim();
-  save(); setStatus('저장됨','ok',true); fetchFeed();
+  save(); setStatus('저장됨','ok',true);
+  fetchFeed().finally(()=>{ if(settings.writeUrl) cloudLoad(); });
 };
 
 /* 웹 → 시트: 새 종목 추가 (Apps Script 웹앱으로 POST) */
@@ -816,7 +863,7 @@ $('addDiv').onclick=()=>{
   fillAccountUI();
   toggleAcctField();
   render();
-  fetchFeed();
+  fetchFeed().finally(()=>{ if(settings.writeUrl) cloudLoad(); });
 })();
 </script>
 </body>
