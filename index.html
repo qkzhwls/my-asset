@@ -107,7 +107,7 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>📊 자산 추적기<span class="v" id="verBadge">v2.3</span></h1>
+    <h1>📊 자산 추적기<span class="v" id="verBadge">v2.4</span></h1>
     <div class="hbtns">
       <button class="btn-p btn-sm" id="refreshBtn">↻ 시세 갱신</button>
       <button class="icon" id="gearBtn" title="설정">⚙</button>
@@ -214,7 +214,8 @@
     <div id="buyForm">
       <div class="form">
         <div class="f wide"><label>종목 (시트 목록에서 선택)</label><select id="bTicker"></select></div>
-        <div class="f half"><label>계좌</label>
+        <div class="hint wide" id="bAcctHint" style="display:none"></div>
+        <div class="f half" id="bAcctField"><label>계좌</label>
           <div class="acctpick"><select id="bAccount"></select><button id="bAddAcct" title="새 계좌">＋</button></div>
         </div>
         <div class="f half"><label>매수금액 (원금, ₩)</label><input id="bAmount" type="number" step="any" inputmode="decimal" placeholder="500000"></div>
@@ -229,7 +230,8 @@
     <div id="divForm" style="display:none">
       <div class="form">
         <div class="f half"><label>종목 (선택)</label><select id="dTicker"></select></div>
-        <div class="f half"><label>계좌</label>
+        <div class="hint wide" id="dAcctHint" style="display:none"></div>
+        <div class="f half" id="dAcctField"><label>계좌</label>
           <div class="acctpick"><select id="dAccount"></select><button id="dAddAcct" title="새 계좌">＋</button></div>
         </div>
         <div class="f half"><label>날짜</label><input id="dDate" type="date"></div>
@@ -298,7 +300,7 @@ function scopeCash(){
 
 /* ---------- 포맷 ---------- */
 function won(n){ if(n==null||isNaN(n)) return '—'; return '₩'+Math.round(n).toLocaleString('ko-KR'); }
-function fmtNum(n){ return Number(n).toLocaleString('ko-KR',{maximumFractionDigits:4}); }
+function fmtNum(n){ return Number(n).toLocaleString('ko-KR',{maximumFractionDigits:8}); }
 function pct(n){ return (n>=0?'+':'')+n.toFixed(2)+'%'; }
 function cls(n){ return n>0?'up':(n<0?'down':'muted'); }
 function priceKRW(name){ const m=priceMap[name];
@@ -490,7 +492,7 @@ function setStatus(msg,type,show){ const s=$('setStatus'); s.textContent=msg;
   s.className='status '+(type||'')+(show?' show':''); if(show) setTimeout(()=>s.classList.remove('show'),4000); }
 
 $('gearBtn').onclick=()=>openSettings();
-$('acctFilter').onchange=e=>{ curAcct=e.target.value; render(); };
+$('acctFilter').onchange=e=>{ curAcct=e.target.value; toggleAcctField(); render(); };
 $('addAcctBtn').onclick=()=>{ const n=addAccount($('newAcct').value); if(n){ $('newAcct').value=''; setStatus('계좌 추가: '+n,'ok',true);} };
 $('newAcct').onkeydown=e=>{ if(e.key==='Enter') $('addAcctBtn').click(); };
 $('bAddAcct').onclick=()=>{ const n=addAccount(prompt('새 계좌 이름')); if(n) $('bAccount').value=n; };
@@ -543,6 +545,16 @@ function setView(v){
 $('navAssets').onclick=()=>setView('assets');
 $('navInput').onclick=()=>setView('input');
 
+/* 상단에서 특정 계좌 선택 시 입력폼의 계좌 선택 숨김(그 계좌로 기록) */
+function toggleAcctField(){
+  const specific = !!curAcct;
+  [['bAcctField','bAcctHint'],['dAcctField','dAcctHint']].forEach(([f,h])=>{
+    $(f).style.display = specific?'none':'';
+    const he=$(h); he.style.display = specific?'':'none';
+    if(specific) he.textContent = '💼 “'+curAcct+'” 계좌에 기록됩니다 (변경은 상단 계좌에서)';
+  });
+}
+
 $('addBuy').onclick=()=>{
   const t=$('bTicker').value;
   const am=parseFloat($('bAmount').value);
@@ -556,16 +568,16 @@ $('addBuy').onclick=()=>{
   }
   buys.push({id:Date.now()+''+Math.random().toString(36).slice(2,6),
     date:$('bDate').value||new Date().toISOString().slice(0,10),
-    account:$('bAccount').value||DEF_ACCT, ticker:t, shares:sh, amount:am});
-  save(); $('bShares').value='';$('bAmount').value='';$('bAvg').value=''; fillAccountUI(); render();
+    account:(curAcct||$('bAccount').value||DEF_ACCT), ticker:t, shares:sh, amount:am});
+  save(); $('bShares').value='';$('bAmount').value='';$('bAvg').value=''; fillAccountUI(); toggleAcctField(); render();
 };
 $('addDiv').onclick=()=>{
   const am=parseFloat($('dAmount').value);
   if(isNaN(am)){ alert('배당금액을 입력하세요'); return; }
   divs.push({id:Date.now()+''+Math.random().toString(36).slice(2,6),
     date:$('dDate').value||new Date().toISOString().slice(0,10),
-    account:$('dAccount').value||DEF_ACCT, ticker:$('dTicker').value, amount:am});
-  save(); $('dAmount').value=''; fillAccountUI(); render();
+    account:(curAcct||$('dAccount').value||DEF_ACCT), ticker:$('dTicker').value, amount:am});
+  save(); $('dAmount').value=''; fillAccountUI(); toggleAcctField(); render();
 };
 
 /* ---------- 초기화 ---------- */
@@ -574,6 +586,7 @@ $('addDiv').onclick=()=>{
   $('bDate').value=today; $('dDate').value=today;
   $('sheetId').value=settings.sheetId;
   fillAccountUI();
+  toggleAcctField();
   render();
   fetchFeed();
 })();
