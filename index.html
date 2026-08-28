@@ -29,6 +29,11 @@
   .feedbar{font-size:11.5px;color:var(--sub);padding:2px 2px 8px}
   .feedbar b{color:var(--txt);font-weight:700}
 
+  .topnav{display:flex;gap:8px;margin:4px 0 12px}
+  .topnav .nav{flex:1;text-align:center;background:var(--card2);border:1px solid var(--line);
+    color:var(--sub);padding:12px;border-radius:12px;font-size:15px;font-weight:800}
+  .topnav .nav.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+
   .acctbar{display:flex;align-items:center;gap:8px;margin-bottom:12px;
     background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 12px}
   .acctbar span{font-size:12px;color:var(--sub);font-weight:700;white-space:nowrap}
@@ -102,13 +107,18 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>📊 자산 추적기<span class="v" id="verBadge">v2.2</span></h1>
+    <h1>📊 자산 추적기<span class="v" id="verBadge">v2.3</span></h1>
     <div class="hbtns">
       <button class="btn-p btn-sm" id="refreshBtn">↻ 시세 갱신</button>
       <button class="icon" id="gearBtn" title="설정">⚙</button>
     </div>
   </header>
   <div class="feedbar" id="feedbar">시트에서 시세 불러오는 중…</div>
+
+  <div class="topnav">
+    <button class="nav on" data-view="assets" id="navAssets">📊 자산 보기</button>
+    <button class="nav" data-view="input" id="navInput">✏️ 입력</button>
+  </div>
 
   <div class="acctbar">
     <span>💼 계좌</span>
@@ -145,6 +155,7 @@
     </p>
   </section>
 
+  <div id="viewAssets">
   <div class="cards">
     <div class="card big">
       <div class="lbl">총 자산 (평가금액 + 예수금)<span id="cScope" class="abadge" style="margin-left:8px"></span></div>
@@ -191,7 +202,9 @@
       </table>
     </div>
   </section>
+  </div><!-- /viewAssets -->
 
+  <div id="viewInput" style="display:none">
   <section>
     <div class="tabs">
       <div class="tab on" data-tab="buy" id="tabBuy">＋ 매수 기록</div>
@@ -245,6 +258,7 @@
       </table>
     </div>
   </section>
+  </div><!-- /viewInput -->
 </div>
 
 <script>
@@ -517,6 +531,17 @@ function tab(name){
 }
 $('tabBuy').onclick=()=>tab('buy');
 $('tabDiv').onclick=()=>tab('div');
+
+/* 상단 뷰 전환 (자산 보기 / 입력) */
+function setView(v){
+  $('navAssets').classList.toggle('on', v==='assets');
+  $('navInput').classList.toggle('on', v==='input');
+  $('viewAssets').style.display = v==='assets' ? '' : 'none';
+  $('viewInput').style.display = v==='input' ? '' : 'none';
+  window.scrollTo(0,0);
+}
+$('navAssets').onclick=()=>setView('assets');
+$('navInput').onclick=()=>setView('input');
 
 $('addBuy').onclick=()=>{
   const t=$('bTicker').value;
