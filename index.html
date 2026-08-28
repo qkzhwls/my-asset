@@ -8,15 +8,14 @@
   :root{
     --bg:#0f1420; --card:#1a2233; --card2:#212b40; --line:#2c3852;
     --txt:#e6ebf5; --sub:#93a1bd; --accent:#4f8cff; --accent2:#6ea8ff;
-    --up:#ff5c7a; --down:#3ec7a0; /* 한국식: 상승=빨강, 하락=파랑/초록 */
-    --warn:#ffbf47;
+    --up:#ff5c7a; --down:#3ec7a0; --warn:#ffbf47;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   body{margin:0;background:var(--bg);color:var(--txt);
     font-family:-apple-system,BlinkMacSystemFont,"Malgun Gothic","맑은 고딕",sans-serif;
     font-size:15px;line-height:1.5;padding-bottom:40px}
   .wrap{max-width:760px;margin:0 auto;padding:14px}
-  header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0 12px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0 4px}
   h1{font-size:19px;margin:0;font-weight:800;letter-spacing:-.02em}
   h1 .v{font-size:11px;color:var(--sub);font-weight:600;margin-left:6px}
   .hbtns{display:flex;gap:8px}
@@ -27,8 +26,9 @@
   .btn-sm{padding:6px 9px;font-size:12px;border-radius:8px}
   .icon{background:var(--card2);border:1px solid var(--line);color:var(--txt);
     width:40px;height:40px;padding:0;display:grid;place-items:center;font-size:17px}
+  .feedbar{font-size:11.5px;color:var(--sub);padding:2px 2px 12px}
+  .feedbar b{color:var(--txt);font-weight:700}
 
-  /* 요약 카드 */
   .cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
   .card .lbl{font-size:12px;color:var(--sub);font-weight:600;margin-bottom:4px}
@@ -43,26 +43,26 @@
   section h2{font-size:14px;margin:0 0 10px;color:var(--sub);font-weight:700;
     display:flex;align-items:center;justify-content:space-between}
 
-  /* 입력 폼 */
   .form{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;align-items:end}
   .f{display:flex;flex-direction:column;gap:4px}
   .f label{font-size:11px;color:var(--sub);font-weight:600;padding-left:2px}
   input,select{font-family:inherit;font-size:15px;background:var(--card2);
     border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:9px;width:100%}
   input:focus,select:focus{outline:none;border-color:var(--accent)}
+  .form .wide{grid-column:1 / -1}
   .form button{grid-column:1 / -1;margin-top:2px}
 
-  /* 표 */
   .tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
   table{width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap}
   th,td{padding:9px 8px;text-align:right;border-bottom:1px solid var(--line)}
   th{color:var(--sub);font-weight:600;font-size:11px}
   th:first-child,td:first-child{text-align:left}
   .tk{font-weight:800}
+  .badge{font-size:10px;font-weight:700;padding:1px 5px;border-radius:5px;margin-left:5px;
+    background:var(--card2);color:var(--sub);border:1px solid var(--line)}
   .del{background:none;color:var(--sub);padding:2px 6px;font-size:16px;line-height:1}
   .empty{color:var(--sub);text-align:center;padding:18px;font-size:13px}
 
-  /* 설정 패널 */
   #settings{display:none}
   #settings.on{display:block}
   .note{font-size:12px;color:var(--sub);line-height:1.6}
@@ -77,7 +77,6 @@
     padding:8px;border-radius:9px;font-size:13px;font-weight:700;color:var(--sub)}
   .tab.on{background:var(--accent);color:#fff;border-color:var(--accent)}
   @media(max-width:520px){
-    .cards{grid-template-columns:1fr 1fr}
     .form{grid-template-columns:1fr 1fr}
     .card .val{font-size:19px}.card.big .val{font-size:24px}
   }
@@ -86,46 +85,37 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>📊 자산 추적기<span class="v" id="verBadge">v1.0</span></h1>
+    <h1>📊 자산 추적기<span class="v" id="verBadge">v2.0</span></h1>
     <div class="hbtns">
       <button class="btn-p btn-sm" id="refreshBtn">↻ 시세 갱신</button>
       <button class="icon" id="gearBtn" title="설정">⚙</button>
     </div>
   </header>
+  <div class="feedbar" id="feedbar">시트에서 시세 불러오는 중…</div>
 
-  <!-- 설정 -->
   <section id="settings">
     <h2>설정</h2>
     <div class="f" style="margin-bottom:10px">
-      <label>Twelve Data API 키 (무료)</label>
-      <input id="apiKey" type="text" placeholder="발급받은 API 키 붙여넣기" autocomplete="off">
-    </div>
-    <div class="row" style="margin-bottom:10px">
-      <div class="f">
-        <label>기준 통화</label>
-        <select id="baseCcy">
-          <option value="USD">USD ($) — 달러 기준</option>
-          <option value="KRW">KRW (₩) — 원화 기준</option>
-        </select>
-      </div>
+      <label>구글시트 ID (시세 공급용)</label>
+      <input id="sheetId" type="text" placeholder="스프레드시트 ID" autocomplete="off">
     </div>
     <div class="row">
-      <button class="btn-p" id="saveSettings">저장</button>
+      <button class="btn-p" id="saveSettings">저장 후 다시 불러오기</button>
+      <button class="btn-g" id="openSheet">시트 열기</button>
       <button class="btn-g" id="exportBtn">백업 내보내기</button>
       <button class="btn-g" id="importBtn">불러오기</button>
     </div>
     <input type="file" id="importFile" accept="application/json" style="display:none">
     <div class="status" id="setStatus"></div>
     <p class="note" style="margin-top:12px">
-      무료 키 발급: <a href="https://twelvedata.com/pricing" target="_blank">twelvedata.com</a> →
-      이메일 가입 → API Key 복사. (하루 800회 무료, 개인용 충분)<br>
-      키는 이 기기 브라우저에만 저장되며 서버로 전송되지 않습니다.<br>
-      <b>기준 통화 KRW</b>: 원금을 원화로 입력 → 평가금액은 실시간 환율로 환산됩니다.<br>
-      <b>기준 통화 USD</b>: 원금을 달러로 입력합니다.
+      시세·환율은 구글시트의 GOOGLEFINANCE에서 자동으로 옵니다(약 15~20분 지연). 시트를
+      <b>“링크가 있는 모든 사용자 / 뷰어”</b>로 공유해야 앱이 읽을 수 있어요.<br>
+      새 종목은 시트 A열에 이름, B열에 코드(<b>국내 KRX:종목코드</b>, 해외는 티커), C열에
+      <b>=GOOGLEFINANCE(코드셀)</b> 을 넣으면 자동으로 드롭다운에 추가됩니다.<br>
+      내 매수기록·금액은 시트에 저장되지 않고 이 기기 브라우저에만 보관됩니다.
     </p>
   </section>
 
-  <!-- 요약 -->
   <div class="cards">
     <div class="card big">
       <div class="lbl">순 평가손익 (평가 - 원금)</div>
@@ -139,7 +129,6 @@
     <div class="card">
       <div class="lbl">현재 평가금액</div>
       <div class="val" id="cValue">—</div>
-      <div class="sub" id="cValueAsof"></div>
     </div>
     <div class="card">
       <div class="lbl">누적 배당금</div>
@@ -152,7 +141,6 @@
     </div>
   </div>
 
-  <!-- 종목별 현황 -->
   <section>
     <h2>종목별 현황</h2>
     <div class="tw">
@@ -166,7 +154,6 @@
     </div>
   </section>
 
-  <!-- 기록 입력 -->
   <section>
     <div class="tabs">
       <div class="tab on" data-tab="buy" id="tabBuy">＋ 매수 기록</div>
@@ -175,42 +162,39 @@
 
     <div id="buyForm">
       <div class="form">
+        <div class="f wide"><label>종목 (시트 목록에서 선택)</label><select id="bTicker"></select></div>
         <div class="f"><label>날짜</label><input id="bDate" type="date"></div>
-        <div class="f"><label>종목 (예: VOO)</label><input id="bTicker" type="text" placeholder="VOO" autocapitalize="characters"></div>
-        <div class="f"><label>수량 (주)</label><input id="bShares" type="number" step="any" inputmode="decimal" placeholder="1.25"></div>
-        <div class="f"><label>매수금액 (원금)</label><input id="bAmount" type="number" step="any" inputmode="decimal" placeholder="500"></div>
+        <div class="f"><label>수량</label><input id="bShares" type="number" step="any" inputmode="decimal" placeholder="10"></div>
+        <div class="f" style="grid-column:span 2"><label>매수금액 (원금, ₩)</label><input id="bAmount" type="number" step="any" inputmode="decimal" placeholder="500000"></div>
         <button class="btn-p" id="addBuy">매수 기록 추가</button>
       </div>
     </div>
 
     <div id="divForm" style="display:none">
       <div class="form">
+        <div class="f wide"><label>종목 (선택)</label><select id="dTicker"></select></div>
         <div class="f"><label>날짜</label><input id="dDate" type="date"></div>
-        <div class="f"><label>종목 (선택)</label><input id="dTicker" type="text" placeholder="SCHD" autocapitalize="characters"></div>
-        <div class="f"><label>배당금액</label><input id="dAmount" type="number" step="any" inputmode="decimal" placeholder="3.2"></div>
-        <div class="f"></div>
+        <div class="f"><label>배당금 (₩)</label><input id="dAmount" type="number" step="any" inputmode="decimal" placeholder="3000"></div>
         <button class="btn-p" id="addDiv">배당 기록 추가</button>
       </div>
     </div>
   </section>
 
-  <!-- 매수 기록 -->
   <section>
     <h2>매수 기록 <span class="muted" id="buyCount"></span></h2>
     <div class="tw">
       <table>
-        <thead><tr><th>날짜</th><th>종목</th><th>수량</th><th>원금</th><th></th></tr></thead>
+        <thead><tr><th>날짜</th><th>종목</th><th>수량</th><th>원금(₩)</th><th></th></tr></thead>
         <tbody id="buyBody"></tbody>
       </table>
     </div>
   </section>
 
-  <!-- 배당 기록 -->
   <section>
     <h2>배당 기록 <span class="muted" id="divCount"></span></h2>
     <div class="tw">
       <table>
-        <thead><tr><th>날짜</th><th>종목</th><th>배당금</th><th></th></tr></thead>
+        <thead><tr><th>날짜</th><th>종목</th><th>배당금(₩)</th><th></th></tr></thead>
         <tbody id="divBody"></tbody>
       </table>
     </div>
@@ -221,12 +205,16 @@
 "use strict";
 const $ = id => document.getElementById(id);
 const LS = { buy:'at_buys', div:'at_divs', set:'at_settings' };
+const SHEET_ID_DEFAULT = '1tLrJnJt0xhNzisE47maeF9FmPG3fe143_FjD4XY4HRw';
 
 let buys = load(LS.buy, []);
 let divs = load(LS.div, []);
-let settings = load(LS.set, { apiKey:'', baseCcy:'USD' });
-let prices = {};   // { TICKER: number(USD) }
-let fx = 1;        // USD->KRW (base가 KRW일 때만 사용)
+let settings = load(LS.set, { sheetId: SHEET_ID_DEFAULT });
+if(!settings.sheetId) settings.sheetId = SHEET_ID_DEFAULT;
+
+let priceMap = {};   // name -> {price, ccy}
+let names = [];      // dropdown 종목명
+let fx = 1;          // USD -> KRW
 let asof = '';
 
 function load(k, def){ try{ return JSON.parse(localStorage.getItem(k)) ?? def; }catch(e){ return def; } }
@@ -234,77 +222,137 @@ function save(){ localStorage.setItem(LS.buy,JSON.stringify(buys));
   localStorage.setItem(LS.div,JSON.stringify(divs));
   localStorage.setItem(LS.set,JSON.stringify(settings)); }
 
-/* ---------- 통화/포맷 ---------- */
-function ccySym(){ return settings.baseCcy==='KRW' ? '₩' : '$'; }
-function toBase(usd){ return settings.baseCcy==='KRW' ? usd*fx : usd; }
-function fmt(n, base=true){
-  if(n==null || isNaN(n)) return '—';
-  const dec = (settings.baseCcy==='KRW') ? 0 : 2;
-  return ccySym()+n.toLocaleString('ko-KR',{minimumFractionDigits:dec,maximumFractionDigits:dec});
-}
-function fmtNum(n,d=4){ return Number(n).toLocaleString('ko-KR',{maximumFractionDigits:d}); }
+/* ---------- 포맷 ---------- */
+function won(n){ if(n==null||isNaN(n)) return '—';
+  return '₩'+Math.round(n).toLocaleString('ko-KR'); }
+function fmtNum(n){ return Number(n).toLocaleString('ko-KR',{maximumFractionDigits:4}); }
 function pct(n){ return (n>=0?'+':'')+n.toFixed(2)+'%'; }
 function cls(n){ return n>0?'up':(n<0?'down':'muted'); }
 
+/* 종목 현재가를 원화로 환산 */
+function priceKRW(name){
+  const m = priceMap[name];
+  if(!m || m.price==null || isNaN(m.price)) return null;
+  return m.ccy==='KRW' ? m.price : m.price*fx;
+}
+
+/* ---------- CSV 파싱 ---------- */
+function parseCSV(text){
+  const rows=[]; let row=[], cur='', q=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(q){
+      if(c==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else q=false; }
+      else cur+=c;
+    }else{
+      if(c==='"') q=true;
+      else if(c===','){ row.push(cur); cur=''; }
+      else if(c==='\n'){ row.push(cur); rows.push(row); row=[]; cur=''; }
+      else if(c==='\r'){}
+      else cur+=c;
+    }
+  }
+  if(cur!==''||row.length){ row.push(cur); rows.push(row); }
+  return rows;
+}
+
+/* ---------- 시트에서 시세 불러오기 ---------- */
+async function fetchFeed(){
+  const btn=$('refreshBtn'); const old=btn.textContent; btn.textContent='불러오는 중…'; btn.disabled=true;
+  $('feedbar').textContent='시트에서 시세 불러오는 중…';
+  try{
+    const url=`https://docs.google.com/spreadsheets/d/${encodeURIComponent(settings.sheetId)}/gviz/tq?tqx=out:csv&gid=0&_=${Date.now()}`;
+    const r=await fetch(url);
+    if(!r.ok) throw new Error('시트 접근 실패('+r.status+') — 공유 설정(링크가 있는 모든 사용자)을 확인하세요');
+    const rows=parseCSV(await r.text());
+    priceMap={}; names=[]; fx=1;
+    for(let i=1;i<rows.length;i++){
+      const name=(rows[i][0]||'').trim();
+      const code=(rows[i][1]||'').trim();
+      const price=parseFloat(String(rows[i][2]||'').replace(/[^0-9.\-]/g,''));
+      if(!name) continue;
+      if(code.toUpperCase()==='CURRENCY:USDKRW'){ if(!isNaN(price)) fx=price; continue; }
+      const ccy = code.toUpperCase().startsWith('KRX:') ? 'KRW' : 'USD';
+      priceMap[name]={ price:isNaN(price)?null:price, ccy };
+      names.push(name);
+    }
+    asof=new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
+    fillSelects();
+    $('feedbar').innerHTML=`시트 연동 · 종목 <b>${names.length}</b>개 · 환율 <b>${fx.toLocaleString('ko-KR',{maximumFractionDigits:2})}</b> · ${asof} 기준`;
+    render();
+  }catch(e){
+    $('feedbar').innerHTML=`<span style="color:var(--warn)">⚠ ${e.message}</span>`;
+    setStatus(e.message,'err',true);
+  }finally{ btn.textContent=old; btn.disabled=false; }
+}
+
+function fillSelects(){
+  for(const sel of [$('bTicker'), $('dTicker')]){
+    const prev=sel.value;
+    sel.innerHTML = (sel.id==='dTicker' ? '<option value="">(전체)</option>' : '')
+      + names.map(n=>`<option>${n}</option>`).join('');
+    if(prev && names.includes(prev)) sel.value=prev;
+  }
+}
+
 /* ---------- 집계 ---------- */
-function tickers(){ return [...new Set(buys.map(b=>b.ticker))]; }
 function holdings(){
-  const map = {};
+  const map={};
   for(const b of buys){
-    const t = b.ticker;
-    if(!map[t]) map[t] = { ticker:t, shares:0, principal:0 };
+    const t=b.ticker;
+    if(!map[t]) map[t]={ticker:t, shares:0, principal:0};
     map[t].shares += Number(b.shares)||0;
-    map[t].principal += Number(b.amount)||0;   // 기준통화 기준
+    map[t].principal += Number(b.amount)||0;
   }
   return Object.values(map).sort((a,b)=>b.principal-a.principal);
 }
 
 /* ---------- 렌더 ---------- */
 function render(){
-  const hs = holdings();
-  const hb = $('holdBody'); hb.innerHTML='';
+  const hs=holdings();
+  const hb=$('holdBody'); hb.innerHTML='';
   let totalPrincipal=0, totalValue=0, priced=true;
 
   for(const h of hs){
     totalPrincipal += h.principal;
-    const px = prices[h.ticker];            // USD 현재가
-    const curPx = px!=null ? toBase(px) : null;
-    const value = curPx!=null ? h.shares*curPx : null;
+    const cur = priceKRW(h.ticker);           // 원화 현재가
+    const value = cur!=null ? h.shares*cur : null;
     if(value!=null) totalValue += value; else priced=false;
     const avg = h.shares>0 ? h.principal/h.shares : 0;
     const gain = value!=null ? value-h.principal : null;
     const gpct = (value!=null && h.principal>0) ? gain/h.principal*100 : null;
+    const m=priceMap[h.ticker];
+    const badge = m ? `<span class="badge">${m.ccy}</span>` : `<span class="badge" style="color:var(--warn)">시트없음</span>`;
 
     const tr=document.createElement('tr');
     tr.innerHTML =
-      `<td class="tk">${h.ticker}</td>`+
+      `<td class="tk">${h.ticker}${badge}</td>`+
       `<td>${fmtNum(h.shares)}</td>`+
-      `<td>${fmt(avg)}</td>`+
-      `<td>${curPx!=null?fmt(curPx):'<span class=muted>–</span>'}</td>`+
-      `<td>${value!=null?fmt(value):'<span class=muted>–</span>'}</td>`+
-      `<td class="${gain!=null?cls(gain):''}">${gain!=null?fmt(gain):'–'}</td>`+
+      `<td>${won(avg)}</td>`+
+      `<td>${cur!=null?won(cur):'<span class=muted>–</span>'}</td>`+
+      `<td>${value!=null?won(value):'<span class=muted>–</span>'}</td>`+
+      `<td class="${gain!=null?cls(gain):''}">${gain!=null?won(gain):'–'}</td>`+
       `<td class="${gpct!=null?cls(gpct):''}">${gpct!=null?pct(gpct):'–'}</td>`;
     hb.appendChild(tr);
   }
   if(hs.length===0) hb.innerHTML='<tr><td colspan="7" class="empty">아직 매수 기록이 없습니다</td></tr>';
 
   const totalDiv = divs.reduce((s,d)=>s+(Number(d.amount)||0),0);
-  const gain = priced && hs.length ? totalValue-totalPrincipal : null;
+  const gain = (priced && hs.length) ? totalValue-totalPrincipal : null;
   const gpct = (gain!=null && totalPrincipal>0) ? gain/totalPrincipal*100 : null;
   const total = gain!=null ? gain+totalDiv : null;
   const tpct = (total!=null && totalPrincipal>0) ? total/totalPrincipal*100 : null;
 
-  $('cPrincipal').textContent = fmt(totalPrincipal);
-  $('cValue').textContent = priced&&hs.length ? fmt(totalValue) : '—';
-  $('cValueAsof').textContent = asof ? '기준: '+asof : '';
-  $('cDiv').textContent = fmt(totalDiv);
+  $('cPrincipal').textContent = won(totalPrincipal);
+  $('cValue').textContent = (priced&&hs.length) ? won(totalValue) : '—';
+  $('cDiv').textContent = won(totalDiv);
 
-  const g=$('cGain'); g.textContent = gain!=null?fmt(gain):'— 시세 갱신 필요';
+  const g=$('cGain'); g.textContent = gain!=null?won(gain):'— 시세 갱신 필요';
   g.className='val '+(gain!=null?cls(gain):'muted');
   $('cGainPct').textContent = gpct!=null?pct(gpct)+' 수익률':'';
   $('cGainPct').className='sub '+(gpct!=null?cls(gpct):'');
 
-  const tt=$('cTotal'); tt.textContent = total!=null?fmt(total):'—';
+  const tt=$('cTotal'); tt.textContent = total!=null?won(total):'—';
   tt.className='val '+(total!=null?cls(total):'muted');
   $('cTotalPct').textContent = tpct!=null?pct(tpct):'';
   $('cTotalPct').className='sub '+(tpct!=null?cls(tpct):'');
@@ -318,7 +366,7 @@ function renderRecords(){
   for(const b of bs){
     const tr=document.createElement('tr');
     tr.innerHTML=`<td>${b.date||''}</td><td class="tk">${b.ticker}</td>`+
-      `<td>${fmtNum(b.shares)}</td><td>${fmt(b.amount)}</td>`+
+      `<td>${fmtNum(b.shares)}</td><td>${won(b.amount)}</td>`+
       `<td><button class="del" data-id="${b.id}" data-t="buy">✕</button></td>`;
     bb.appendChild(tr);
   }
@@ -330,7 +378,7 @@ function renderRecords(){
   for(const d of ds){
     const tr=document.createElement('tr');
     tr.innerHTML=`<td>${d.date||''}</td><td class="tk">${d.ticker||'-'}</td>`+
-      `<td>${fmt(d.amount)}</td>`+
+      `<td>${won(d.amount)}</td>`+
       `<td><button class="del" data-id="${d.id}" data-t="div">✕</button></td>`;
     db.appendChild(tr);
   }
@@ -344,44 +392,6 @@ function renderRecords(){
   });
 }
 
-/* ---------- 시세 조회 (Twelve Data) ---------- */
-async function fetchPrices(){
-  if(!settings.apiKey){ setStatus('먼저 설정(⚙)에서 API 키를 입력하세요.','err',true); openSettings(true); return; }
-  const ts=tickers();
-  if(!ts.length){ setStatus('종목이 없습니다. 매수 기록을 먼저 추가하세요.','err',true); return; }
-  const btn=$('refreshBtn'); const old=btn.textContent; btn.textContent='조회중…'; btn.disabled=true;
-  try{
-    const symbols = ts.join(',');
-    const url=`https://api.twelvedata.com/price?symbol=${encodeURIComponent(symbols)}&apikey=${encodeURIComponent(settings.apiKey)}`;
-    const r=await fetch(url); const j=await r.json();
-    if(j.code && j.message) throw new Error(j.message);
-    prices={};
-    if(ts.length===1){
-      if(j.price) prices[ts[0]]=parseFloat(j.price);
-      else throw new Error(ts[0]+' 시세를 못 받았습니다');
-    }else{
-      for(const t of ts){
-        const o=j[t];
-        if(o && o.price) prices[t]=parseFloat(o.price);
-        else if(o && o.code) throw new Error(t+': '+(o.message||'조회 실패'));
-      }
-    }
-    // 환율 (KRW 기준일 때만)
-    if(settings.baseCcy==='KRW'){
-      const fr=await fetch(`https://api.twelvedata.com/price?symbol=USD/KRW&apikey=${encodeURIComponent(settings.apiKey)}`);
-      const fj=await fr.json();
-      if(fj.price) fx=parseFloat(fj.price); else throw new Error('환율 조회 실패');
-    }else fx=1;
-    asof=new Date().toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
-    const miss=ts.filter(t=>prices[t]==null);
-    if(miss.length) setStatus('일부 종목 시세 없음: '+miss.join(', '),'err',true);
-    else setStatus('시세 갱신 완료','ok',true);
-    render();
-  }catch(e){
-    setStatus('오류: '+e.message,'err',true);
-  }finally{ btn.textContent=old; btn.disabled=false; }
-}
-
 /* ---------- 설정/백업 ---------- */
 function openSettings(on){ $('settings').classList.toggle('on', on!==undefined?on:!$('settings').classList.contains('on')); }
 function setStatus(msg,type,show){ const s=$('setStatus'); s.textContent=msg;
@@ -389,14 +399,15 @@ function setStatus(msg,type,show){ const s=$('setStatus'); s.textContent=msg;
 
 $('gearBtn').onclick=()=>openSettings();
 $('saveSettings').onclick=()=>{
-  settings.apiKey=$('apiKey').value.trim();
-  settings.baseCcy=$('baseCcy').value;
-  save(); render(); setStatus('저장되었습니다','ok',true);
+  const v=$('sheetId').value.trim();
+  settings.sheetId = v || SHEET_ID_DEFAULT;
+  save(); setStatus('저장됨','ok',true); fetchFeed();
 };
-$('refreshBtn').onclick=fetchPrices;
+$('openSheet').onclick=()=>window.open(`https://docs.google.com/spreadsheets/d/${settings.sheetId}/edit`,'_blank');
+$('refreshBtn').onclick=fetchFeed;
 
 $('exportBtn').onclick=()=>{
-  const data=JSON.stringify({buys,divs,settings:{baseCcy:settings.baseCcy},exported:new Date().toISOString()},null,2);
+  const data=JSON.stringify({buys,divs,exported:new Date().toISOString()},null,2);
   const blob=new Blob([data],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
   a.download='asset-backup-'+new Date().toISOString().slice(0,10)+'.json'; a.click();
@@ -409,8 +420,7 @@ $('importFile').onchange=e=>{
     const j=JSON.parse(rd.result);
     if(Array.isArray(j.buys)) buys=j.buys;
     if(Array.isArray(j.divs)) divs=j.divs;
-    if(j.settings&&j.settings.baseCcy) settings.baseCcy=j.settings.baseCcy;
-    save(); syncSettingsUI(); render(); setStatus('불러오기 완료','ok',true);
+    save(); render(); setStatus('불러오기 완료','ok',true);
   }catch(err){ setStatus('파일을 읽을 수 없습니다','err',true); } };
   rd.readAsText(f); e.target.value='';
 };
@@ -426,32 +436,30 @@ $('tabBuy').onclick=()=>tab('buy');
 $('tabDiv').onclick=()=>tab('div');
 
 $('addBuy').onclick=()=>{
-  const t=$('bTicker').value.trim().toUpperCase();
+  const t=$('bTicker').value;
   const sh=parseFloat($('bShares').value), am=parseFloat($('bAmount').value);
-  if(!t||isNaN(sh)||isNaN(am)){ alert('종목·수량·금액을 모두 입력하세요'); return; }
+  if(!t){ alert('종목을 선택하세요 (없으면 구글시트에 추가 후 시세 갱신)'); return; }
+  if(isNaN(sh)||isNaN(am)){ alert('수량과 매수금액을 입력하세요'); return; }
   buys.push({id:Date.now()+''+Math.random().toString(36).slice(2,6),
     date:$('bDate').value||new Date().toISOString().slice(0,10), ticker:t, shares:sh, amount:am});
-  save(); $('bTicker').value='';$('bShares').value='';$('bAmount').value=''; render();
+  save(); $('bShares').value='';$('bAmount').value=''; render();
 };
 $('addDiv').onclick=()=>{
   const am=parseFloat($('dAmount').value);
   if(isNaN(am)){ alert('배당금액을 입력하세요'); return; }
   divs.push({id:Date.now()+''+Math.random().toString(36).slice(2,6),
     date:$('dDate').value||new Date().toISOString().slice(0,10),
-    ticker:$('dTicker').value.trim().toUpperCase(), amount:am});
-  save(); $('dTicker').value='';$('dAmount').value=''; render();
+    ticker:$('dTicker').value, amount:am});
+  save(); $('dAmount').value=''; render();
 };
-
-function syncSettingsUI(){ $('apiKey').value=settings.apiKey||''; $('baseCcy').value=settings.baseCcy||'USD'; }
 
 /* ---------- 초기화 ---------- */
 (function init(){
   const today=new Date().toISOString().slice(0,10);
   $('bDate').value=today; $('dDate').value=today;
-  syncSettingsUI();
+  $('sheetId').value=settings.sheetId;
   render();
-  if(!settings.apiKey) openSettings(true);
-  else fetchPrices();
+  fetchFeed();
 })();
 </script>
 </body>
