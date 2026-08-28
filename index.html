@@ -111,7 +111,7 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>📊 자산 추적기<span class="v" id="verBadge">v3.0</span></h1>
+    <h1>📊 자산 추적기<span class="v" id="verBadge">v3.1</span></h1>
     <div class="hbtns">
       <button class="btn-p btn-sm" id="refreshBtn">↻ 시세 갱신</button>
       <button class="icon" id="syncBtn" title="기기간 동기화 (불러오기)">☁</button>
@@ -339,10 +339,12 @@ function saveLocal(){ localStorage.setItem(LS.buy,JSON.stringify(buys));
 
 /* ---------- 기기간 동기화 (Apps Script 저장소) ---------- */
 let suppressSave=false, cloudTimer=null;
-function save(){ saveLocal(); if(!suppressSave && settings.writeUrl) scheduleCloudSave(); }
+function save(){ if(!suppressSave) settings.lastMod=Date.now(); saveLocal(); if(!suppressSave && settings.writeUrl) scheduleCloudSave(); }
 function scheduleCloudSave(){ clearTimeout(cloudTimer); cloudTimer=setTimeout(cloudSave,1500); }
 function syncStamp(msg){ const el=$('syncInfo'); if(el) el.textContent='☁ '+msg+' · '+new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}); }
-function syncPayload(){ return {buys, divs, accounts:settings.accounts, cash:settings.cash, plans:settings.plans, excludeCash:!!settings.excludeCash, ts:Date.now()}; }
+function hasLocalData(){ return buys.length||divs.length||(settings.plans&&settings.plans.length)||(settings.cash&&Object.keys(settings.cash).length); }
+function cloudHasData(d){ return (d.buys&&d.buys.length)||(d.divs&&d.divs.length)||(d.plans&&d.plans.length)||(d.cash&&Object.keys(d.cash).length); }
+function syncPayload(){ return {buys, divs, accounts:settings.accounts, cash:settings.cash, plans:settings.plans, excludeCash:!!settings.excludeCash, ts:settings.lastMod||0}; }
 function cloudSave(){
   if(!settings.writeUrl) return;
   fetch(settings.writeUrl,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'save',data:syncPayload()})})
@@ -356,12 +358,14 @@ function applyCloud(d){
   if(d.cash&&typeof d.cash==='object') settings.cash=d.cash;
   if(Array.isArray(d.plans)) settings.plans=d.plans;
   if(typeof d.excludeCash==='boolean') settings.excludeCash=d.excludeCash;
-  runPlans();
+  if(d.ts) settings.lastMod=+d.ts;
+  const created=runPlans();
+  if(created) settings.lastMod=Date.now();
   saveLocal();
   suppressSave=false;
   $('exCash').checked=!!settings.excludeCash;
   fillAccountUI(); toggleAcctField(); render();
-  cloudSave();                 // 정기매수 생성분 등 반영해 다시 업로드
+  if(created) cloudSave();     // 정기매수로 새로 생성된 분만 다시 업로드
   syncStamp('동기화됨');
 }
 function cloudLoad(cb){
@@ -370,8 +374,17 @@ function cloudLoad(cb){
   const s=document.createElement('script'); let done=false;
   window.__syncCb=function(res){ done=true;
     try{
-      if(res && res.ok && res.data){ applyCloud(res.data); if(cb)cb(true); }
-      else { cloudSave(); syncStamp('연결됨(이 기기 데이터 업로드)'); if(cb)cb(false); }
+      if(res && res.ok && res.data && cloudHasData(res.data)){
+        const cloudTs=+res.data.ts||0, localTs=+settings.lastMod||0;
+        // 클라우드가 더 최신이거나, 이 기기에 데이터가 없을 때만 덮어씀
+        if(cloudTs>localTs || !hasLocalData()){ applyCloud(res.data); if(cb)cb(true); }
+        else { cloudSave(); syncStamp('이 기기가 최신 · 업로드'); if(cb)cb(false); }
+      } else {
+        // 클라우드가 비어있음 → 절대 덮어쓰지 않음. 이 기기 데이터가 있으면 업로드
+        if(hasLocalData()){ cloudSave(); syncStamp('연결됨 · 이 기기 데이터 업로드'); }
+        else syncStamp('연결됨(데이터 없음)');
+        if(cb)cb(false);
+      }
     }catch(e){ syncStamp('동기화 오류'); if(cb)cb(false); }
     s.remove();
   };
