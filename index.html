@@ -109,7 +109,7 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>📊 자산 추적기<span class="v" id="verBadge">v2.6</span></h1>
+    <h1>📊 자산 추적기<span class="v" id="verBadge">v2.7</span></h1>
     <div class="hbtns">
       <button class="btn-p btn-sm" id="refreshBtn">↻ 시세 갱신</button>
       <button class="icon" id="gearBtn" title="설정">⚙</button>
@@ -264,15 +264,17 @@
           <div class="acctpick"><select id="pAccount"></select><button id="pAddAcct" title="새 계좌">＋</button></div>
         </div>
         <div class="hint wide" id="pAcctHint" style="display:none"></div>
-        <div class="f half"><label>1회 매수금액 (₩)</label><input id="pAmount" type="number" step="any" inputmode="decimal" placeholder="300000"></div>
-        <div class="f"><label>주기</label><select id="pFreq"><option value="monthly">매월</option><option value="weekly">매주</option><option value="biweekly">격주(2주)</option></select></div>
+        <div class="f half"><label>방식</label><select id="pMode"><option value="amount">금액 기준 (매번 ₩)</option><option value="shares">수량 기준 (매번 N주)</option></select></div>
+        <div class="f half" id="pAmountField"><label>1회 매수금액 (₩)</label><input id="pAmount" type="number" step="any" inputmode="decimal" placeholder="300000"></div>
+        <div class="f half" id="pQtyField" style="display:none"><label>1회 수량 (주)</label><input id="pQty" type="number" step="any" inputmode="decimal" placeholder="1"></div>
+        <div class="f"><label>주기</label><select id="pFreq"><option value="monthly">매월</option><option value="weekly">매주</option><option value="w2">2주마다</option><option value="w3">3주마다</option><option value="w4">4주마다</option></select></div>
         <div class="f" id="pDayField"><label>매수일(며칠)</label><input id="pDay" type="number" min="1" max="28" placeholder="25"></div>
-        <div class="f" id="pWeekdayField" style="display:none"><label>요일</label><select id="pWeekday"><option value="1">월</option><option value="2">화</option><option value="3">수</option><option value="4">목</option><option value="5">금</option></select></div>
+        <div class="f" id="pWeekdayField" style="display:none"><label>요일</label><select id="pWeekday"><option value="1">월</option><option value="2">화</option><option value="3">수</option><option value="4">목</option><option value="5">금</option><option value="6">토</option><option value="0">일</option></select></div>
         <div class="f"><label>시작일</label><input id="pStart" type="date"></div>
         <button class="btn-p add" id="addPlan">정기매수 계획 추가</button>
       </div>
       <div class="tw" style="margin-top:12px"><table>
-        <thead><tr><th>계좌</th><th>종목</th><th>1회금액</th><th>주기</th><th>다음 예정</th><th></th></tr></thead>
+        <thead><tr><th>계좌</th><th>종목</th><th>1회</th><th>주기</th><th>다음 예정</th><th></th></tr></thead>
         <tbody id="planBody"></tbody>
       </table></div>
       <p class="hint" style="margin-top:8px">※ 예정일마다 <b>매수기록이 자동 생성</b>됩니다(시작일부터 소급 생성). 수량은 <b>생성 시점 시세로 추정</b>이니, 매수기록의 <b>수량을 눌러 실제 체결수량으로 보정</b>할 수 있어요.</p>
@@ -441,6 +443,11 @@ function parseD(s){ const [y,m,d]=s.split('-').map(Number); return new Date(y,m-
 function toStr(dt){ return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0'); }
 function addDays(s,n){ const d=parseD(s); d.setDate(d.getDate()+n); return toStr(d); }
 
+function weekStep(freq){
+  if(freq==='weekly') return 7;
+  if(freq==='biweekly') return 14;
+  const m=/^w(\d+)$/.exec(freq); return m ? +m[1]*7 : 7;
+}
 function dueDates(p, fromS, toS){
   const out=[]; if(!fromS||!toS||fromS>toS) return out;
   const end=parseD(toS);
@@ -453,7 +460,7 @@ function dueDates(p, fromS, toS){
       cur.setMonth(cur.getMonth()+1);
     }
   }else{
-    const wd=+p.weekday, step=(p.freq==='biweekly')?14:7;
+    const wd=+p.weekday, step=weekStep(p.freq);
     let base=parseD(p.start);
     while(base.getDay()!==wd) base.setDate(base.getDate()+1);
     let cur=new Date(base);
@@ -484,8 +491,11 @@ function runPlans(){
     for(const d of dates){
       const id='plan_'+p.id+'_'+d;
       if(!buys.some(b=>b.id===id)){
-        buys.push({id, date:d, account:p.account, ticker:p.ticker, amount:p.amount,
-          shares:p.amount/px, auto:true, planId:p.id});
+        let shares, amount;
+        if(p.mode==='shares'){ shares=+p.qty; amount=shares*px; }   // 수량 고정, 금액 추정
+        else { amount=+p.amount; shares=amount/px; }                // 금액 고정, 수량 추정
+        buys.push({id, date:d, account:p.account, ticker:p.ticker, amount, shares,
+          auto:true, planId:p.id, mode:p.mode||'amount'});
         created++;
       }
       last=d;
@@ -565,8 +575,9 @@ function renderPlans(){
   const pb=$('planBody'); if(!pb) return; pb.innerHTML='';
   const list = curAcct ? settings.plans.filter(p=>p.account===curAcct) : settings.plans;
   for(const p of list){ const tr=document.createElement('tr');
+    const oneShot = p.mode==='shares' ? (fmtNum(p.qty)+'주') : won(p.amount);
     tr.innerHTML=`<td><span class="abadge">${p.account}</span></td><td class="tk">${p.ticker}</td>`+
-      `<td>${won(p.amount)}</td><td>${freqText(p)}</td><td>${nextDue(p)}</td>`+
+      `<td>${oneShot}</td><td>${freqText(p)}</td><td>${nextDue(p)}</td>`+
       `<td><button class="del" data-pid="${p.id}">✕</button></td>`;
     pb.appendChild(tr); }
   if(!list.length) pb.innerHTML='<tr><td colspan="6" class="empty">등록된 정기매수 없음</td></tr>';
@@ -693,14 +704,24 @@ $('tabPlan').onclick=()=>tab('plan');
 /* 정기매수 주기에 따라 매수일/요일 필드 전환 */
 $('pFreq').onchange=()=>{ const m=$('pFreq').value==='monthly';
   $('pDayField').style.display=m?'':'none'; $('pWeekdayField').style.display=m?'none':''; };
+$('pMode').onchange=()=>{ const amt=$('pMode').value==='amount';
+  $('pAmountField').style.display=amt?'':'none'; $('pQtyField').style.display=amt?'none':''; };
 $('pAddAcct').onclick=()=>{ const n=addAccount(prompt('새 계좌 이름')); if(n) $('pAccount').value=n; };
 $('addPlan').onclick=()=>{
-  const t=$('pTicker').value, am=parseFloat($('pAmount').value), freq=$('pFreq').value;
+  const t=$('pTicker').value, freq=$('pFreq').value, mode=$('pMode').value;
   if(!t){ alert('종목을 선택하세요'); return; }
-  if(isNaN(am)||am<=0){ alert('1회 매수금액을 입력하세요'); return; }
   const plan={ id:Date.now()+''+Math.random().toString(36).slice(2,5),
-    account:(curAcct||$('pAccount').value||DEF_ACCT), ticker:t, amount:am, freq,
+    account:(curAcct||$('pAccount').value||DEF_ACCT), ticker:t, freq, mode,
     start:$('pStart').value||todayStr(), end:'', lastGen:null };
+  if(mode==='shares'){
+    const q=parseFloat($('pQty').value);
+    if(isNaN(q)||q<=0){ alert('1회 수량(주)을 입력하세요'); return; }
+    plan.qty=q;
+  }else{
+    const am=parseFloat($('pAmount').value);
+    if(isNaN(am)||am<=0){ alert('1회 매수금액을 입력하세요'); return; }
+    plan.amount=am;
+  }
   if(freq==='monthly') plan.day=Math.min(28,Math.max(1,parseInt($('pDay').value)||1));
   else plan.weekday=parseInt($('pWeekday').value);
   settings.plans.push(plan); save();
