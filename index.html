@@ -78,6 +78,8 @@
   .abadge{font-size:10px;font-weight:700;padding:1px 6px;border-radius:5px;
     background:#1e2b45;color:var(--accent2);border:1px solid var(--line)}
   .del{background:none;color:var(--sub);padding:2px 6px;font-size:16px;line-height:1}
+  .editable{cursor:pointer;text-decoration:underline dotted rgba(255,255,255,.25)}
+  .editable:active{color:var(--accent2)}
   .empty{color:var(--sub);text-align:center;padding:18px;font-size:13px}
 
   #settings{display:none}
@@ -107,7 +109,7 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>📊 자산 추적기<span class="v" id="verBadge">v2.5</span></h1>
+    <h1>📊 자산 추적기<span class="v" id="verBadge">v2.6</span></h1>
     <div class="hbtns">
       <button class="btn-p btn-sm" id="refreshBtn">↻ 시세 갱신</button>
       <button class="icon" id="gearBtn" title="설정">⚙</button>
@@ -211,8 +213,9 @@
   <div id="viewInput" style="display:none">
   <section>
     <div class="tabs">
-      <div class="tab on" data-tab="buy" id="tabBuy">＋ 매수 기록</div>
-      <div class="tab" data-tab="div" id="tabDiv">＋ 배당 기록</div>
+      <div class="tab on" data-tab="buy" id="tabBuy">＋ 매수</div>
+      <div class="tab" data-tab="div" id="tabDiv">＋ 배당</div>
+      <div class="tab" data-tab="plan" id="tabPlan">🔁 정기매수</div>
     </div>
 
     <div id="buyForm">
@@ -253,6 +256,27 @@
         <button class="btn-p add" id="addDiv">배당 기록 추가</button>
       </div>
     </div>
+
+    <div id="planForm" style="display:none">
+      <div class="form">
+        <div class="f wide"><label>종목</label><select id="pTicker"></select></div>
+        <div class="f half" id="pAcctField"><label>계좌</label>
+          <div class="acctpick"><select id="pAccount"></select><button id="pAddAcct" title="새 계좌">＋</button></div>
+        </div>
+        <div class="hint wide" id="pAcctHint" style="display:none"></div>
+        <div class="f half"><label>1회 매수금액 (₩)</label><input id="pAmount" type="number" step="any" inputmode="decimal" placeholder="300000"></div>
+        <div class="f"><label>주기</label><select id="pFreq"><option value="monthly">매월</option><option value="weekly">매주</option><option value="biweekly">격주(2주)</option></select></div>
+        <div class="f" id="pDayField"><label>매수일(며칠)</label><input id="pDay" type="number" min="1" max="28" placeholder="25"></div>
+        <div class="f" id="pWeekdayField" style="display:none"><label>요일</label><select id="pWeekday"><option value="1">월</option><option value="2">화</option><option value="3">수</option><option value="4">목</option><option value="5">금</option></select></div>
+        <div class="f"><label>시작일</label><input id="pStart" type="date"></div>
+        <button class="btn-p add" id="addPlan">정기매수 계획 추가</button>
+      </div>
+      <div class="tw" style="margin-top:12px"><table>
+        <thead><tr><th>계좌</th><th>종목</th><th>1회금액</th><th>주기</th><th>다음 예정</th><th></th></tr></thead>
+        <tbody id="planBody"></tbody>
+      </table></div>
+      <p class="hint" style="margin-top:8px">※ 예정일마다 <b>매수기록이 자동 생성</b>됩니다(시작일부터 소급 생성). 수량은 <b>생성 시점 시세로 추정</b>이니, 매수기록의 <b>수량을 눌러 실제 체결수량으로 보정</b>할 수 있어요.</p>
+    </div>
   </section>
 
   <section>
@@ -290,6 +314,7 @@ let settings = load(LS.set, { sheetId: SHEET_ID_DEFAULT, accounts:[DEF_ACCT], ca
 if(!settings.sheetId) settings.sheetId = SHEET_ID_DEFAULT;
 if(!Array.isArray(settings.accounts) || !settings.accounts.length) settings.accounts=[DEF_ACCT];
 if(!settings.cash || typeof settings.cash!=='object') settings.cash={};
+if(!Array.isArray(settings.plans)) settings.plans=[];
 
 let priceMap = {}, names = [], fx = 1, asof = '';
 let curAcct = '';   // '' = 전체
@@ -354,6 +379,7 @@ async function fetchFeed(){
     }
     asof=new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
     fillSelects();
+    runPlans();   // 정기매수 예정분 자동 생성 (시세 로드 후)
     $('feedbar').innerHTML=`시트 연동 · 종목 <b>${names.length}</b>개 · 환율 <b>${fx.toLocaleString('ko-KR',{maximumFractionDigits:2})}</b> · ${asof} 기준`;
     render();
   }catch(e){
@@ -363,7 +389,7 @@ async function fetchFeed(){
 }
 
 function fillSelects(){
-  for(const sel of [$('bTicker'), $('dTicker')]){
+  for(const sel of [$('bTicker'), $('dTicker'), $('pTicker')]){
     const prev=sel.value;
     sel.innerHTML = (sel.id==='dTicker' ? '<option value="">(전체)</option>' : '')
       + names.map(n=>`<option>${n}</option>`).join('');
@@ -376,7 +402,7 @@ function fillAccountUI(){
   const fSel=$('acctFilter'); const prevF=curAcct;
   fSel.innerHTML='<option value="">전체 계좌</option>'+accts.map(a=>`<option>${a}</option>`).join('');
   fSel.value=prevF;
-  for(const sel of [$('bAccount'),$('dAccount')]){
+  for(const sel of [$('bAccount'),$('dAccount'),$('pAccount')]){
     const prev=sel.value;
     sel.innerHTML=accts.map(a=>`<option>${a}</option>`).join('');
     sel.value = (prev && accts.includes(prev)) ? prev : accts[0];
@@ -406,6 +432,68 @@ function addAccount(name){
   name=(name||'').trim(); if(!name) return null;
   if(!settings.accounts.includes(name)) settings.accounts.push(name);
   save(); fillAccountUI(); return name;
+}
+
+/* ---------- 날짜 유틸 ---------- */
+const WD=['일','월','화','수','목','금','토'];
+function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function parseD(s){ const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
+function toStr(dt){ return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0'); }
+function addDays(s,n){ const d=parseD(s); d.setDate(d.getDate()+n); return toStr(d); }
+
+function dueDates(p, fromS, toS){
+  const out=[]; if(!fromS||!toS||fromS>toS) return out;
+  const end=parseD(toS);
+  if(p.freq==='monthly'){
+    const day=Math.min(28,Math.max(1,+p.day||1));
+    let cur=parseD(fromS); cur=new Date(cur.getFullYear(),cur.getMonth(),1);
+    while(cur<=end){
+      const s=toStr(new Date(cur.getFullYear(),cur.getMonth(),day));
+      if(s>=fromS && s<=toS && s>=p.start) out.push(s);
+      cur.setMonth(cur.getMonth()+1);
+    }
+  }else{
+    const wd=+p.weekday, step=(p.freq==='biweekly')?14:7;
+    let base=parseD(p.start);
+    while(base.getDay()!==wd) base.setDate(base.getDate()+1);
+    let cur=new Date(base);
+    while(toStr(cur)<fromS) cur.setDate(cur.getDate()+step);
+    while(cur<=end){ const s=toStr(cur); if(s>=fromS&&s<=toS&&s>=p.start) out.push(s); cur.setDate(cur.getDate()+step); }
+  }
+  return out;
+}
+function nextDue(p){
+  const from=todayStr(), horizon=addDays(from,400);
+  const to=(p.end&&p.end<horizon)?p.end:horizon;
+  const ds=dueDates(p, from, to);
+  return ds.length?ds[0]:'—';
+}
+function freqText(p){
+  if(p.freq==='monthly') return '매월 '+p.day+'일';
+  return (p.freq==='biweekly'?'격주 ':'매주 ')+WD[+p.weekday||0]+'요일';
+}
+/* 정기매수 계획 → 예정일마다 매수기록 자동 생성 (수량=생성시점 시세 추정) */
+function runPlans(){
+  let created=0; const today=todayStr();
+  for(const p of settings.plans){
+    const px=priceKRW(p.ticker); if(!px) continue;
+    const from = p.lastGen ? addDays(p.lastGen,1) : p.start;
+    const to = (p.end && p.end<today) ? p.end : today;
+    const dates=dueDates(p, from, to);
+    let last=p.lastGen;
+    for(const d of dates){
+      const id='plan_'+p.id+'_'+d;
+      if(!buys.some(b=>b.id===id)){
+        buys.push({id, date:d, account:p.account, ticker:p.ticker, amount:p.amount,
+          shares:p.amount/px, auto:true, planId:p.id});
+        created++;
+      }
+      last=d;
+    }
+    if(last) p.lastGen=last;
+  }
+  if(created) save();
+  return created;
 }
 
 /* ---------- 집계 ---------- */
@@ -470,6 +558,22 @@ function render(){
   $('cTotalPct').className='sub '+(tpct!=null?cls(tpct):'');
 
   renderRecords(fbuys,fdivs);
+  renderPlans();
+}
+
+function renderPlans(){
+  const pb=$('planBody'); if(!pb) return; pb.innerHTML='';
+  const list = curAcct ? settings.plans.filter(p=>p.account===curAcct) : settings.plans;
+  for(const p of list){ const tr=document.createElement('tr');
+    tr.innerHTML=`<td><span class="abadge">${p.account}</span></td><td class="tk">${p.ticker}</td>`+
+      `<td>${won(p.amount)}</td><td>${freqText(p)}</td><td>${nextDue(p)}</td>`+
+      `<td><button class="del" data-pid="${p.id}">✕</button></td>`;
+    pb.appendChild(tr); }
+  if(!list.length) pb.innerHTML='<tr><td colspan="6" class="empty">등록된 정기매수 없음</td></tr>';
+  pb.querySelectorAll('button[data-pid]').forEach(btn=>btn.onclick=()=>{
+    if(!confirm('정기매수 계획을 삭제할까요? (이미 생성된 기록은 유지됩니다)')) return;
+    settings.plans=settings.plans.filter(p=>p.id!=btn.dataset.pid); save(); fillAccountUI(); render();
+  });
 }
 
 function renderRecords(fbuys,fdivs){
@@ -477,7 +581,9 @@ function renderRecords(fbuys,fdivs){
   const bs=[...fbuys].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   for(const b of bs){ const tr=document.createElement('tr');
     tr.innerHTML=`<td>${b.date||''}</td><td><span class="abadge">${acctOf(b)}</span></td>`+
-      `<td class="tk">${b.ticker}</td><td>${fmtNum(b.shares)}</td><td>${won(b.amount)}</td>`+
+      `<td class="tk">${b.ticker}${b.auto?'<span class="badge">자동</span>':''}</td>`+
+      `<td class="editable" data-id="${b.id}" data-f="shares" title="눌러서 실제 수량 보정">${fmtNum(b.shares)}${b.auto?' ✎':''}</td>`+
+      `<td class="editable" data-id="${b.id}" data-f="amount" title="눌러서 금액 수정">${won(b.amount)}</td>`+
       `<td><button class="del" data-id="${b.id}" data-t="buy">✕</button></td>`;
     bb.appendChild(tr); }
   if(!bs.length) bb.innerHTML='<tr><td colspan="6" class="empty">기록 없음</td></tr>';
@@ -493,10 +599,17 @@ function renderRecords(fbuys,fdivs){
   if(!ds.length) db.innerHTML='<tr><td colspan="5" class="empty">기록 없음</td></tr>';
   $('divCount').textContent=ds.length?`(${ds.length})`:'';
 
-  document.querySelectorAll('.del').forEach(btn=>btn.onclick=()=>{
+  [...$('buyBody').querySelectorAll('.del'), ...$('divBody').querySelectorAll('.del')].forEach(btn=>btn.onclick=()=>{
     const id=btn.dataset.id,t=btn.dataset.t;
     if(t==='buy') buys=buys.filter(x=>x.id!=id); else divs=divs.filter(x=>x.id!=id);
     save(); fillAccountUI(); render();
+  });
+  $('buyBody').querySelectorAll('.editable').forEach(td=>td.onclick=()=>{
+    const b=buys.find(x=>x.id==td.dataset.id); if(!b) return;
+    const f=td.dataset.f;
+    const v=prompt(f==='shares'?'실제 체결 수량 입력':'매수금액(원금, ₩)', f==='shares'?b.shares:b.amount);
+    if(v===null) return; const n=parseFloat(v); if(isNaN(n)) return;
+    b[f]=n; if(f==='shares') b.auto=b.auto; save(); render();
   });
 }
 
@@ -545,7 +658,7 @@ $('openSheet').onclick=()=>window.open(`https://docs.google.com/spreadsheets/d/$
 $('refreshBtn').onclick=fetchFeed;
 
 $('exportBtn').onclick=()=>{
-  const data=JSON.stringify({buys,divs,accounts:settings.accounts,cash:settings.cash,exported:new Date().toISOString()},null,2);
+  const data=JSON.stringify({buys,divs,accounts:settings.accounts,cash:settings.cash,plans:settings.plans,exported:new Date().toISOString()},null,2);
   const blob=new Blob([data],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
   a.download='asset-backup-'+new Date().toISOString().slice(0,10)+'.json'; a.click();
@@ -558,6 +671,7 @@ $('importFile').onchange=e=>{
     if(Array.isArray(j.divs)) divs=j.divs;
     if(Array.isArray(j.accounts)&&j.accounts.length) settings.accounts=j.accounts;
     if(j.cash&&typeof j.cash==='object') settings.cash=j.cash;
+    if(Array.isArray(j.plans)) settings.plans=j.plans;
     save(); fillAccountUI(); render(); setStatus('불러오기 완료','ok',true);
   }catch(err){ setStatus('파일을 읽을 수 없습니다','err',true); } };
   rd.readAsText(f); e.target.value='';
@@ -567,11 +681,33 @@ $('importFile').onchange=e=>{
 function tab(name){
   $('tabBuy').classList.toggle('on',name==='buy');
   $('tabDiv').classList.toggle('on',name==='div');
+  $('tabPlan').classList.toggle('on',name==='plan');
   $('buyForm').style.display=name==='buy'?'':'none';
   $('divForm').style.display=name==='div'?'':'none';
+  $('planForm').style.display=name==='plan'?'':'none';
 }
 $('tabBuy').onclick=()=>tab('buy');
 $('tabDiv').onclick=()=>tab('div');
+$('tabPlan').onclick=()=>tab('plan');
+
+/* 정기매수 주기에 따라 매수일/요일 필드 전환 */
+$('pFreq').onchange=()=>{ const m=$('pFreq').value==='monthly';
+  $('pDayField').style.display=m?'':'none'; $('pWeekdayField').style.display=m?'none':''; };
+$('pAddAcct').onclick=()=>{ const n=addAccount(prompt('새 계좌 이름')); if(n) $('pAccount').value=n; };
+$('addPlan').onclick=()=>{
+  const t=$('pTicker').value, am=parseFloat($('pAmount').value), freq=$('pFreq').value;
+  if(!t){ alert('종목을 선택하세요'); return; }
+  if(isNaN(am)||am<=0){ alert('1회 매수금액을 입력하세요'); return; }
+  const plan={ id:Date.now()+''+Math.random().toString(36).slice(2,5),
+    account:(curAcct||$('pAccount').value||DEF_ACCT), ticker:t, amount:am, freq,
+    start:$('pStart').value||todayStr(), end:'', lastGen:null };
+  if(freq==='monthly') plan.day=Math.min(28,Math.max(1,parseInt($('pDay').value)||1));
+  else plan.weekday=parseInt($('pWeekday').value);
+  settings.plans.push(plan); save();
+  const n=runPlans();
+  fillAccountUI(); render();
+  alert('정기매수 계획 추가됨'+(n?` · 지난 예정분 ${n}건 자동 기록`:''));
+};
 
 /* 상단 뷰 전환 (자산 보기 / 입력) */
 function setView(v){
@@ -587,7 +723,7 @@ $('navInput').onclick=()=>setView('input');
 /* 상단에서 특정 계좌 선택 시 입력폼의 계좌 선택 숨김(그 계좌로 기록) */
 function toggleAcctField(){
   const specific = !!curAcct;
-  [['bAcctField','bAcctHint'],['dAcctField','dAcctHint']].forEach(([f,h])=>{
+  [['bAcctField','bAcctHint'],['dAcctField','dAcctHint'],['pAcctField','pAcctHint']].forEach(([f,h])=>{
     $(f).style.display = specific?'none':'';
     const he=$(h); he.style.display = specific?'':'none';
     if(specific) he.textContent = '💼 “'+curAcct+'” 계좌에 기록됩니다 (변경은 상단 계좌에서)';
@@ -622,7 +758,7 @@ $('addDiv').onclick=()=>{
 /* ---------- 초기화 ---------- */
 (function init(){
   const today=new Date().toISOString().slice(0,10);
-  $('bDate').value=today; $('dDate').value=today;
+  $('bDate').value=today; $('dDate').value=today; $('pStart').value=today;
   $('sheetId').value=settings.sheetId;
   $('writeUrl').value=settings.writeUrl||'';
   fillAccountUI();
