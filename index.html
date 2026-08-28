@@ -60,6 +60,7 @@
   .acctpick{display:flex;gap:6px}
   .acctpick select{flex:1}
   .acctpick button{padding:9px 11px;background:var(--card2);border:1px solid var(--line);color:var(--txt)}
+  .hint{font-size:10.5px;color:var(--sub);padding-left:2px}
 
   .tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
   table{width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap}
@@ -80,10 +81,10 @@
   .note a{color:var(--accent2)}
   .row{display:flex;gap:8px;flex-wrap:wrap}
   .row>*{flex:1;min-width:120px}
-  .acctlist{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
-  .chip{display:inline-flex;align-items:center;gap:6px;background:var(--card2);
-    border:1px solid var(--line);border-radius:20px;padding:5px 10px;font-size:12.5px;font-weight:700}
-  .chip button{background:none;color:var(--sub);padding:0;font-size:14px}
+  .acctrow{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .acctrow .aname{flex:1;font-weight:700;font-size:13px}
+  .acctrow input{flex:0 0 140px}
+  .acctrow .delacct{flex:0 0 auto;background:none;color:var(--sub);padding:2px 6px;font-size:15px}
   .status{font-size:12px;padding:8px 10px;border-radius:9px;margin-top:8px;display:none}
   .status.show{display:block}
   .status.ok{background:#123528;color:#6fe3bc} .status.err{background:#3a1622;color:#ff9db0}
@@ -101,7 +102,7 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>📊 자산 추적기<span class="v" id="verBadge">v2.1</span></h1>
+    <h1>📊 자산 추적기<span class="v" id="verBadge">v2.2</span></h1>
     <div class="hbtns">
       <button class="btn-p btn-sm" id="refreshBtn">↻ 시세 갱신</button>
       <button class="icon" id="gearBtn" title="설정">⚙</button>
@@ -117,12 +118,13 @@
   <section id="settings">
     <h2>설정</h2>
     <div style="margin-bottom:12px">
-      <label class="note" style="font-weight:700;color:var(--txt)">계좌 관리</label>
-      <div class="acctlist" id="acctChips"></div>
+      <label class="note" style="font-weight:700;color:var(--txt)">계좌 관리 · 예수금</label>
+      <div id="acctRows" style="margin:8px 0"></div>
       <div class="acctpick">
         <input id="newAcct" type="text" placeholder="새 계좌 이름 (예: 연금저축, ISA, 키움일반)">
         <button class="btn-p" id="addAcctBtn" style="flex:0 0 auto">추가</button>
       </div>
+      <p class="hint" style="margin:6px 2px 0">예수금(현금)은 계좌마다 입력 → 총 자산 = 평가금액 + 예수금</p>
     </div>
     <div class="f" style="margin-bottom:10px">
       <label>구글시트 ID (시세 공급용)</label>
@@ -139,13 +141,18 @@
     <p class="note" style="margin-top:12px">
       시세·환율은 구글시트의 GOOGLEFINANCE에서 자동으로 옵니다(약 15~20분 지연). 시트를
       <b>“링크가 있는 모든 사용자 / 뷰어”</b>로 공유해야 앱이 읽을 수 있어요.<br>
-      매수·배당 기록과 계좌 구분은 이 기기 브라우저에만 저장됩니다(시트엔 미저장).
+      매수·배당·계좌·예수금은 이 기기 브라우저에만 저장됩니다(시트엔 미저장).
     </p>
   </section>
 
   <div class="cards">
     <div class="card big">
-      <div class="lbl">순 평가손익 (평가 - 원금)<span id="cScope" class="abadge" style="margin-left:8px"></span></div>
+      <div class="lbl">총 자산 (평가금액 + 예수금)<span id="cScope" class="abadge" style="margin-left:8px"></span></div>
+      <div class="val" id="cAsset">—</div>
+      <div class="sub" id="cAssetSub"></div>
+    </div>
+    <div class="card">
+      <div class="lbl">순 평가손익 (평가 − 원금)</div>
       <div class="val" id="cGain">—</div>
       <div class="sub" id="cGainPct"></div>
     </div>
@@ -156,6 +163,10 @@
     <div class="card">
       <div class="lbl">현재 평가금액</div>
       <div class="val" id="cValue">—</div>
+    </div>
+    <div class="card">
+      <div class="lbl">예수금 (현금)</div>
+      <div class="val" id="cCash">—</div>
     </div>
     <div class="card">
       <div class="lbl">누적 배당금</div>
@@ -193,9 +204,11 @@
         <div class="f half"><label>계좌</label>
           <div class="acctpick"><select id="bAccount"></select><button id="bAddAcct" title="새 계좌">＋</button></div>
         </div>
-        <div class="f"><label>날짜</label><input id="bDate" type="date"></div>
-        <div class="f"><label>수량</label><input id="bShares" type="number" step="any" inputmode="decimal" placeholder="10"></div>
         <div class="f half"><label>매수금액 (원금, ₩)</label><input id="bAmount" type="number" step="any" inputmode="decimal" placeholder="500000"></div>
+        <div class="f"><label>수량</label><input id="bShares" type="number" step="any" inputmode="decimal" placeholder="10"></div>
+        <div class="f"><label>평단가 (₩)</label><input id="bAvg" type="number" step="any" inputmode="decimal" placeholder="선택"></div>
+        <div class="f"><label>날짜</label><input id="bDate" type="date"></div>
+        <div class="hint wide">※ 수량 또는 평단가 중 하나만 넣어도 됩니다 (평단가 입력 시 수량 = 매수금액 ÷ 평단가 자동)</div>
         <button class="btn-p add" id="addBuy">매수 기록 추가</button>
       </div>
     </div>
@@ -243,9 +256,10 @@ const DEF_ACCT = '기본';
 
 let buys = load(LS.buy, []);
 let divs = load(LS.div, []);
-let settings = load(LS.set, { sheetId: SHEET_ID_DEFAULT, accounts:[DEF_ACCT] });
+let settings = load(LS.set, { sheetId: SHEET_ID_DEFAULT, accounts:[DEF_ACCT], cash:{} });
 if(!settings.sheetId) settings.sheetId = SHEET_ID_DEFAULT;
 if(!Array.isArray(settings.accounts) || !settings.accounts.length) settings.accounts=[DEF_ACCT];
+if(!settings.cash || typeof settings.cash!=='object') settings.cash={};
 
 let priceMap = {}, names = [], fx = 1, asof = '';
 let curAcct = '';   // '' = 전체
@@ -261,6 +275,11 @@ function allAccounts(){
   buys.forEach(b=>s.add(acctOf(b))); divs.forEach(d=>s.add(acctOf(d)));
   if(!s.size) s.add(DEF_ACCT);
   return [...s];
+}
+function scopeCash(){
+  const c=settings.cash||{};
+  return curAcct ? (Number(c[curAcct])||0)
+                 : allAccounts().reduce((s,a)=>s+(Number(c[a])||0),0);
 }
 
 /* ---------- 포맷 ---------- */
@@ -324,26 +343,32 @@ function fillSelects(){
 
 function fillAccountUI(){
   const accts=allAccounts();
-  // 상단 필터
   const fSel=$('acctFilter'); const prevF=curAcct;
   fSel.innerHTML='<option value="">전체 계좌</option>'+accts.map(a=>`<option>${a}</option>`).join('');
   fSel.value=prevF;
-  // 입력폼 계좌 선택
   for(const sel of [$('bAccount'),$('dAccount')]){
     const prev=sel.value;
     sel.innerHTML=accts.map(a=>`<option>${a}</option>`).join('');
     sel.value = (prev && accts.includes(prev)) ? prev : accts[0];
   }
-  // 설정 칩
-  const chips=$('acctChips'); chips.innerHTML='';
+  // 계좌 관리 + 예수금
+  const rows=$('acctRows'); rows.innerHTML='';
   for(const a of settings.accounts){
     const used = buys.some(b=>acctOf(b)===a)||divs.some(d=>acctOf(d)===a);
-    const c=document.createElement('span'); c.className='chip';
-    c.innerHTML=`${a}`+(settings.accounts.length>1&&!used?` <button data-a="${a}" title="삭제">✕</button>`:'');
-    chips.appendChild(c);
+    const div=document.createElement('div'); div.className='acctrow';
+    div.innerHTML=`<span class="aname">${a}</span>`+
+      `<input class="cashin" data-a="${a}" type="number" inputmode="numeric" placeholder="예수금 ₩" value="${settings.cash[a]??''}">`+
+      (settings.accounts.length>1&&!used?`<button class="delacct" data-a="${a}" title="계좌 삭제">✕</button>`:`<span style="flex:0 0 22px"></span>`);
+    rows.appendChild(div);
   }
-  chips.querySelectorAll('button').forEach(b=>b.onclick=()=>{
-    settings.accounts=settings.accounts.filter(x=>x!==b.dataset.a); save(); fillAccountUI();
+  rows.querySelectorAll('.cashin').forEach(inp=>inp.onchange=()=>{
+    const v=parseFloat(inp.value);
+    if(isNaN(v)) delete settings.cash[inp.dataset.a]; else settings.cash[inp.dataset.a]=v;
+    save(); render();
+  });
+  rows.querySelectorAll('.delacct').forEach(b=>b.onclick=()=>{
+    settings.accounts=settings.accounts.filter(x=>x!==b.dataset.a);
+    delete settings.cash[b.dataset.a]; save(); fillAccountUI(); render();
   });
 }
 
@@ -391,14 +416,19 @@ function render(){
   }
   if(!hs.length) hb.innerHTML='<tr><td colspan="7" class="empty">이 계좌에 매수 기록이 없습니다</td></tr>';
 
+  const cash=scopeCash();
   const totalDiv=fdivs.reduce((s,d)=>s+(Number(d.amount)||0),0);
   const gain=(priced&&hs.length)?totalValue-totalPrincipal:null;
   const gpct=(gain!=null&&totalPrincipal>0)?gain/totalPrincipal*100:null;
   const total=gain!=null?gain+totalDiv:null;
   const tpct=(total!=null&&totalPrincipal>0)?total/totalPrincipal*100:null;
+  const assetTotal = priced ? totalValue+cash : null;
 
+  $('cAsset').textContent = assetTotal!=null?won(assetTotal):'—';
+  $('cAssetSub').textContent = `평가 ${won(priced?totalValue:0)} · 예수금 ${won(cash)}`;
   $('cPrincipal').textContent=won(totalPrincipal);
-  $('cValue').textContent=(priced&&hs.length)?won(totalValue):'—';
+  $('cValue').textContent=(priced&&hs.length)?won(totalValue):(hs.length?'—':won(0));
+  $('cCash').textContent=won(cash);
   $('cDiv').textContent=won(totalDiv);
   const g=$('cGain'); g.textContent=gain!=null?won(gain):'— 시세 갱신 필요';
   g.className='val '+(gain!=null?cls(gain):'muted');
@@ -460,7 +490,7 @@ $('openSheet').onclick=()=>window.open(`https://docs.google.com/spreadsheets/d/$
 $('refreshBtn').onclick=fetchFeed;
 
 $('exportBtn').onclick=()=>{
-  const data=JSON.stringify({buys,divs,accounts:settings.accounts,exported:new Date().toISOString()},null,2);
+  const data=JSON.stringify({buys,divs,accounts:settings.accounts,cash:settings.cash,exported:new Date().toISOString()},null,2);
   const blob=new Blob([data],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
   a.download='asset-backup-'+new Date().toISOString().slice(0,10)+'.json'; a.click();
@@ -472,6 +502,7 @@ $('importFile').onchange=e=>{
     if(Array.isArray(j.buys)) buys=j.buys;
     if(Array.isArray(j.divs)) divs=j.divs;
     if(Array.isArray(j.accounts)&&j.accounts.length) settings.accounts=j.accounts;
+    if(j.cash&&typeof j.cash==='object') settings.cash=j.cash;
     save(); fillAccountUI(); render(); setStatus('불러오기 완료','ok',true);
   }catch(err){ setStatus('파일을 읽을 수 없습니다','err',true); } };
   rd.readAsText(f); e.target.value='';
@@ -489,13 +520,19 @@ $('tabDiv').onclick=()=>tab('div');
 
 $('addBuy').onclick=()=>{
   const t=$('bTicker').value;
-  const sh=parseFloat($('bShares').value), am=parseFloat($('bAmount').value);
+  const am=parseFloat($('bAmount').value);
+  let sh=parseFloat($('bShares').value);
+  const avg=parseFloat($('bAvg').value);
   if(!t){ alert('종목을 선택하세요 (없으면 구글시트에 추가 후 시세 갱신)'); return; }
-  if(isNaN(sh)||isNaN(am)){ alert('수량과 매수금액을 입력하세요'); return; }
+  if(isNaN(am)){ alert('매수금액(원금)을 입력하세요'); return; }
+  if(isNaN(sh)){
+    if(!isNaN(avg)&&avg>0) sh=am/avg;
+    else { alert('수량 또는 평단가 중 하나를 입력하세요'); return; }
+  }
   buys.push({id:Date.now()+''+Math.random().toString(36).slice(2,6),
     date:$('bDate').value||new Date().toISOString().slice(0,10),
     account:$('bAccount').value||DEF_ACCT, ticker:t, shares:sh, amount:am});
-  save(); $('bShares').value='';$('bAmount').value=''; fillAccountUI(); render();
+  save(); $('bShares').value='';$('bAmount').value='';$('bAvg').value=''; fillAccountUI(); render();
 };
 $('addDiv').onclick=()=>{
   const am=parseFloat($('dAmount').value);
