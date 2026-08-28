@@ -26,8 +26,13 @@
   .btn-sm{padding:6px 9px;font-size:12px;border-radius:8px}
   .icon{background:var(--card2);border:1px solid var(--line);color:var(--txt);
     width:40px;height:40px;padding:0;display:grid;place-items:center;font-size:17px}
-  .feedbar{font-size:11.5px;color:var(--sub);padding:2px 2px 12px}
+  .feedbar{font-size:11.5px;color:var(--sub);padding:2px 2px 8px}
   .feedbar b{color:var(--txt);font-weight:700}
+
+  .acctbar{display:flex;align-items:center;gap:8px;margin-bottom:12px;
+    background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 12px}
+  .acctbar span{font-size:12px;color:var(--sub);font-weight:700;white-space:nowrap}
+  .acctbar select{flex:1}
 
   .cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
@@ -50,7 +55,11 @@
     border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:9px;width:100%}
   input:focus,select:focus{outline:none;border-color:var(--accent)}
   .form .wide{grid-column:1 / -1}
-  .form button{grid-column:1 / -1;margin-top:2px}
+  .form .half{grid-column:span 2}
+  .form button.add{grid-column:1 / -1;margin-top:2px}
+  .acctpick{display:flex;gap:6px}
+  .acctpick select{flex:1}
+  .acctpick button{padding:9px 11px;background:var(--card2);border:1px solid var(--line);color:var(--txt)}
 
   .tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
   table{width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap}
@@ -60,6 +69,8 @@
   .tk{font-weight:800}
   .badge{font-size:10px;font-weight:700;padding:1px 5px;border-radius:5px;margin-left:5px;
     background:var(--card2);color:var(--sub);border:1px solid var(--line)}
+  .abadge{font-size:10px;font-weight:700;padding:1px 6px;border-radius:5px;
+    background:#1e2b45;color:var(--accent2);border:1px solid var(--line)}
   .del{background:none;color:var(--sub);padding:2px 6px;font-size:16px;line-height:1}
   .empty{color:var(--sub);text-align:center;padding:18px;font-size:13px}
 
@@ -69,6 +80,10 @@
   .note a{color:var(--accent2)}
   .row{display:flex;gap:8px;flex-wrap:wrap}
   .row>*{flex:1;min-width:120px}
+  .acctlist{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:var(--card2);
+    border:1px solid var(--line);border-radius:20px;padding:5px 10px;font-size:12.5px;font-weight:700}
+  .chip button{background:none;color:var(--sub);padding:0;font-size:14px}
   .status{font-size:12px;padding:8px 10px;border-radius:9px;margin-top:8px;display:none}
   .status.show{display:block}
   .status.ok{background:#123528;color:#6fe3bc} .status.err{background:#3a1622;color:#ff9db0}
@@ -78,6 +93,7 @@
   .tab.on{background:var(--accent);color:#fff;border-color:var(--accent)}
   @media(max-width:520px){
     .form{grid-template-columns:1fr 1fr}
+    .form .half{grid-column:1 / -1}
     .card .val{font-size:19px}.card.big .val{font-size:24px}
   }
 </style>
@@ -85,7 +101,7 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>📊 자산 추적기<span class="v" id="verBadge">v2.0</span></h1>
+    <h1>📊 자산 추적기<span class="v" id="verBadge">v2.1</span></h1>
     <div class="hbtns">
       <button class="btn-p btn-sm" id="refreshBtn">↻ 시세 갱신</button>
       <button class="icon" id="gearBtn" title="설정">⚙</button>
@@ -93,8 +109,21 @@
   </header>
   <div class="feedbar" id="feedbar">시트에서 시세 불러오는 중…</div>
 
+  <div class="acctbar">
+    <span>💼 계좌</span>
+    <select id="acctFilter"></select>
+  </div>
+
   <section id="settings">
     <h2>설정</h2>
+    <div style="margin-bottom:12px">
+      <label class="note" style="font-weight:700;color:var(--txt)">계좌 관리</label>
+      <div class="acctlist" id="acctChips"></div>
+      <div class="acctpick">
+        <input id="newAcct" type="text" placeholder="새 계좌 이름 (예: 연금저축, ISA, 키움일반)">
+        <button class="btn-p" id="addAcctBtn" style="flex:0 0 auto">추가</button>
+      </div>
+    </div>
     <div class="f" style="margin-bottom:10px">
       <label>구글시트 ID (시세 공급용)</label>
       <input id="sheetId" type="text" placeholder="스프레드시트 ID" autocomplete="off">
@@ -110,15 +139,13 @@
     <p class="note" style="margin-top:12px">
       시세·환율은 구글시트의 GOOGLEFINANCE에서 자동으로 옵니다(약 15~20분 지연). 시트를
       <b>“링크가 있는 모든 사용자 / 뷰어”</b>로 공유해야 앱이 읽을 수 있어요.<br>
-      새 종목은 시트 A열에 이름, B열에 코드(<b>국내 KRX:종목코드</b>, 해외는 티커), C열에
-      <b>=GOOGLEFINANCE(코드셀)</b> 을 넣으면 자동으로 드롭다운에 추가됩니다.<br>
-      내 매수기록·금액은 시트에 저장되지 않고 이 기기 브라우저에만 보관됩니다.
+      매수·배당 기록과 계좌 구분은 이 기기 브라우저에만 저장됩니다(시트엔 미저장).
     </p>
   </section>
 
   <div class="cards">
     <div class="card big">
-      <div class="lbl">순 평가손익 (평가 - 원금)</div>
+      <div class="lbl">순 평가손익 (평가 - 원금)<span id="cScope" class="abadge" style="margin-left:8px"></span></div>
       <div class="val" id="cGain">—</div>
       <div class="sub" id="cGainPct"></div>
     </div>
@@ -163,19 +190,25 @@
     <div id="buyForm">
       <div class="form">
         <div class="f wide"><label>종목 (시트 목록에서 선택)</label><select id="bTicker"></select></div>
+        <div class="f half"><label>계좌</label>
+          <div class="acctpick"><select id="bAccount"></select><button id="bAddAcct" title="새 계좌">＋</button></div>
+        </div>
         <div class="f"><label>날짜</label><input id="bDate" type="date"></div>
         <div class="f"><label>수량</label><input id="bShares" type="number" step="any" inputmode="decimal" placeholder="10"></div>
-        <div class="f" style="grid-column:span 2"><label>매수금액 (원금, ₩)</label><input id="bAmount" type="number" step="any" inputmode="decimal" placeholder="500000"></div>
-        <button class="btn-p" id="addBuy">매수 기록 추가</button>
+        <div class="f half"><label>매수금액 (원금, ₩)</label><input id="bAmount" type="number" step="any" inputmode="decimal" placeholder="500000"></div>
+        <button class="btn-p add" id="addBuy">매수 기록 추가</button>
       </div>
     </div>
 
     <div id="divForm" style="display:none">
       <div class="form">
-        <div class="f wide"><label>종목 (선택)</label><select id="dTicker"></select></div>
-        <div class="f"><label>날짜</label><input id="dDate" type="date"></div>
-        <div class="f"><label>배당금 (₩)</label><input id="dAmount" type="number" step="any" inputmode="decimal" placeholder="3000"></div>
-        <button class="btn-p" id="addDiv">배당 기록 추가</button>
+        <div class="f half"><label>종목 (선택)</label><select id="dTicker"></select></div>
+        <div class="f half"><label>계좌</label>
+          <div class="acctpick"><select id="dAccount"></select><button id="dAddAcct" title="새 계좌">＋</button></div>
+        </div>
+        <div class="f half"><label>날짜</label><input id="dDate" type="date"></div>
+        <div class="f half"><label>배당금 (₩)</label><input id="dAmount" type="number" step="any" inputmode="decimal" placeholder="3000"></div>
+        <button class="btn-p add" id="addDiv">배당 기록 추가</button>
       </div>
     </div>
   </section>
@@ -184,7 +217,7 @@
     <h2>매수 기록 <span class="muted" id="buyCount"></span></h2>
     <div class="tw">
       <table>
-        <thead><tr><th>날짜</th><th>종목</th><th>수량</th><th>원금(₩)</th><th></th></tr></thead>
+        <thead><tr><th>날짜</th><th>계좌</th><th>종목</th><th>수량</th><th>원금(₩)</th><th></th></tr></thead>
         <tbody id="buyBody"></tbody>
       </table>
     </div>
@@ -194,7 +227,7 @@
     <h2>배당 기록 <span class="muted" id="divCount"></span></h2>
     <div class="tw">
       <table>
-        <thead><tr><th>날짜</th><th>종목</th><th>배당금(₩)</th><th></th></tr></thead>
+        <thead><tr><th>날짜</th><th>계좌</th><th>종목</th><th>배당금(₩)</th><th></th></tr></thead>
         <tbody id="divBody"></tbody>
       </table>
     </div>
@@ -206,57 +239,53 @@
 const $ = id => document.getElementById(id);
 const LS = { buy:'at_buys', div:'at_divs', set:'at_settings' };
 const SHEET_ID_DEFAULT = '1tLrJnJt0xhNzisE47maeF9FmPG3fe143_FjD4XY4HRw';
+const DEF_ACCT = '기본';
 
 let buys = load(LS.buy, []);
 let divs = load(LS.div, []);
-let settings = load(LS.set, { sheetId: SHEET_ID_DEFAULT });
+let settings = load(LS.set, { sheetId: SHEET_ID_DEFAULT, accounts:[DEF_ACCT] });
 if(!settings.sheetId) settings.sheetId = SHEET_ID_DEFAULT;
+if(!Array.isArray(settings.accounts) || !settings.accounts.length) settings.accounts=[DEF_ACCT];
 
-let priceMap = {};   // name -> {price, ccy}
-let names = [];      // dropdown 종목명
-let fx = 1;          // USD -> KRW
-let asof = '';
+let priceMap = {}, names = [], fx = 1, asof = '';
+let curAcct = '';   // '' = 전체
 
 function load(k, def){ try{ return JSON.parse(localStorage.getItem(k)) ?? def; }catch(e){ return def; } }
 function save(){ localStorage.setItem(LS.buy,JSON.stringify(buys));
   localStorage.setItem(LS.div,JSON.stringify(divs));
   localStorage.setItem(LS.set,JSON.stringify(settings)); }
 
+const acctOf = r => r.account || DEF_ACCT;
+function allAccounts(){
+  const s=new Set(settings.accounts||[]);
+  buys.forEach(b=>s.add(acctOf(b))); divs.forEach(d=>s.add(acctOf(d)));
+  if(!s.size) s.add(DEF_ACCT);
+  return [...s];
+}
+
 /* ---------- 포맷 ---------- */
-function won(n){ if(n==null||isNaN(n)) return '—';
-  return '₩'+Math.round(n).toLocaleString('ko-KR'); }
+function won(n){ if(n==null||isNaN(n)) return '—'; return '₩'+Math.round(n).toLocaleString('ko-KR'); }
 function fmtNum(n){ return Number(n).toLocaleString('ko-KR',{maximumFractionDigits:4}); }
 function pct(n){ return (n>=0?'+':'')+n.toFixed(2)+'%'; }
 function cls(n){ return n>0?'up':(n<0?'down':'muted'); }
+function priceKRW(name){ const m=priceMap[name];
+  if(!m||m.price==null||isNaN(m.price)) return null;
+  return m.ccy==='KRW'?m.price:m.price*fx; }
 
-/* 종목 현재가를 원화로 환산 */
-function priceKRW(name){
-  const m = priceMap[name];
-  if(!m || m.price==null || isNaN(m.price)) return null;
-  return m.ccy==='KRW' ? m.price : m.price*fx;
-}
-
-/* ---------- CSV 파싱 ---------- */
+/* ---------- CSV ---------- */
 function parseCSV(text){
   const rows=[]; let row=[], cur='', q=false;
-  for(let i=0;i<text.length;i++){
-    const c=text[i];
-    if(q){
-      if(c==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else q=false; }
-      else cur+=c;
-    }else{
-      if(c==='"') q=true;
+  for(let i=0;i<text.length;i++){ const c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; }
+    else{ if(c==='"') q=true;
       else if(c===','){ row.push(cur); cur=''; }
       else if(c==='\n'){ row.push(cur); rows.push(row); row=[]; cur=''; }
-      else if(c==='\r'){}
-      else cur+=c;
-    }
-  }
+      else if(c==='\r'){} else cur+=c; } }
   if(cur!==''||row.length){ row.push(cur); rows.push(row); }
   return rows;
 }
 
-/* ---------- 시트에서 시세 불러오기 ---------- */
+/* ---------- 시세 ---------- */
 async function fetchFeed(){
   const btn=$('refreshBtn'); const old=btn.textContent; btn.textContent='불러오는 중…'; btn.disabled=true;
   $('feedbar').textContent='시트에서 시세 불러오는 중…';
@@ -267,13 +296,11 @@ async function fetchFeed(){
     const rows=parseCSV(await r.text());
     priceMap={}; names=[]; fx=1;
     for(let i=1;i<rows.length;i++){
-      const name=(rows[i][0]||'').trim();
-      const code=(rows[i][1]||'').trim();
+      const name=(rows[i][0]||'').trim(), code=(rows[i][1]||'').trim();
       const price=parseFloat(String(rows[i][2]||'').replace(/[^0-9.\-]/g,''));
       if(!name) continue;
       if(code.toUpperCase()==='CURRENCY:USDKRW'){ if(!isNaN(price)) fx=price; continue; }
-      const ccy = code.toUpperCase().startsWith('KRX:') ? 'KRW' : 'USD';
-      priceMap[name]={ price:isNaN(price)?null:price, ccy };
+      priceMap[name]={ price:isNaN(price)?null:price, ccy: code.toUpperCase().startsWith('KRX:')?'KRW':'USD' };
       names.push(name);
     }
     asof=new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
@@ -295,100 +322,121 @@ function fillSelects(){
   }
 }
 
-/* ---------- 집계 ---------- */
-function holdings(){
-  const map={};
-  for(const b of buys){
-    const t=b.ticker;
-    if(!map[t]) map[t]={ticker:t, shares:0, principal:0};
-    map[t].shares += Number(b.shares)||0;
-    map[t].principal += Number(b.amount)||0;
+function fillAccountUI(){
+  const accts=allAccounts();
+  // 상단 필터
+  const fSel=$('acctFilter'); const prevF=curAcct;
+  fSel.innerHTML='<option value="">전체 계좌</option>'+accts.map(a=>`<option>${a}</option>`).join('');
+  fSel.value=prevF;
+  // 입력폼 계좌 선택
+  for(const sel of [$('bAccount'),$('dAccount')]){
+    const prev=sel.value;
+    sel.innerHTML=accts.map(a=>`<option>${a}</option>`).join('');
+    sel.value = (prev && accts.includes(prev)) ? prev : accts[0];
   }
+  // 설정 칩
+  const chips=$('acctChips'); chips.innerHTML='';
+  for(const a of settings.accounts){
+    const used = buys.some(b=>acctOf(b)===a)||divs.some(d=>acctOf(d)===a);
+    const c=document.createElement('span'); c.className='chip';
+    c.innerHTML=`${a}`+(settings.accounts.length>1&&!used?` <button data-a="${a}" title="삭제">✕</button>`:'');
+    chips.appendChild(c);
+  }
+  chips.querySelectorAll('button').forEach(b=>b.onclick=()=>{
+    settings.accounts=settings.accounts.filter(x=>x!==b.dataset.a); save(); fillAccountUI();
+  });
+}
+
+function addAccount(name){
+  name=(name||'').trim(); if(!name) return null;
+  if(!settings.accounts.includes(name)) settings.accounts.push(name);
+  save(); fillAccountUI(); return name;
+}
+
+/* ---------- 집계 ---------- */
+function holdings(list){
+  const map={};
+  for(const b of list){ const t=b.ticker;
+    if(!map[t]) map[t]={ticker:t, shares:0, principal:0};
+    map[t].shares+=Number(b.shares)||0; map[t].principal+=Number(b.amount)||0; }
   return Object.values(map).sort((a,b)=>b.principal-a.principal);
 }
 
 /* ---------- 렌더 ---------- */
 function render(){
-  const hs=holdings();
+  const fbuys = curAcct ? buys.filter(b=>acctOf(b)===curAcct) : buys;
+  const fdivs = curAcct ? divs.filter(d=>acctOf(d)===curAcct) : divs;
+  $('cScope').textContent = curAcct || '전체';
+
+  const hs=holdings(fbuys);
   const hb=$('holdBody'); hb.innerHTML='';
   let totalPrincipal=0, totalValue=0, priced=true;
-
   for(const h of hs){
-    totalPrincipal += h.principal;
-    const cur = priceKRW(h.ticker);           // 원화 현재가
-    const value = cur!=null ? h.shares*cur : null;
-    if(value!=null) totalValue += value; else priced=false;
-    const avg = h.shares>0 ? h.principal/h.shares : 0;
-    const gain = value!=null ? value-h.principal : null;
-    const gpct = (value!=null && h.principal>0) ? gain/h.principal*100 : null;
+    totalPrincipal+=h.principal;
+    const cur=priceKRW(h.ticker);
+    const value=cur!=null?h.shares*cur:null;
+    if(value!=null) totalValue+=value; else priced=false;
+    const avg=h.shares>0?h.principal/h.shares:0;
+    const gain=value!=null?value-h.principal:null;
+    const gpct=(value!=null&&h.principal>0)?gain/h.principal*100:null;
     const m=priceMap[h.ticker];
-    const badge = m ? `<span class="badge">${m.ccy}</span>` : `<span class="badge" style="color:var(--warn)">시트없음</span>`;
-
+    const badge=m?`<span class="badge">${m.ccy}</span>`:`<span class="badge" style="color:var(--warn)">시트없음</span>`;
     const tr=document.createElement('tr');
-    tr.innerHTML =
-      `<td class="tk">${h.ticker}${badge}</td>`+
-      `<td>${fmtNum(h.shares)}</td>`+
-      `<td>${won(avg)}</td>`+
-      `<td>${cur!=null?won(cur):'<span class=muted>–</span>'}</td>`+
+    tr.innerHTML=`<td class="tk">${h.ticker}${badge}</td><td>${fmtNum(h.shares)}</td>`+
+      `<td>${won(avg)}</td><td>${cur!=null?won(cur):'<span class=muted>–</span>'}</td>`+
       `<td>${value!=null?won(value):'<span class=muted>–</span>'}</td>`+
       `<td class="${gain!=null?cls(gain):''}">${gain!=null?won(gain):'–'}</td>`+
       `<td class="${gpct!=null?cls(gpct):''}">${gpct!=null?pct(gpct):'–'}</td>`;
     hb.appendChild(tr);
   }
-  if(hs.length===0) hb.innerHTML='<tr><td colspan="7" class="empty">아직 매수 기록이 없습니다</td></tr>';
+  if(!hs.length) hb.innerHTML='<tr><td colspan="7" class="empty">이 계좌에 매수 기록이 없습니다</td></tr>';
 
-  const totalDiv = divs.reduce((s,d)=>s+(Number(d.amount)||0),0);
-  const gain = (priced && hs.length) ? totalValue-totalPrincipal : null;
-  const gpct = (gain!=null && totalPrincipal>0) ? gain/totalPrincipal*100 : null;
-  const total = gain!=null ? gain+totalDiv : null;
-  const tpct = (total!=null && totalPrincipal>0) ? total/totalPrincipal*100 : null;
+  const totalDiv=fdivs.reduce((s,d)=>s+(Number(d.amount)||0),0);
+  const gain=(priced&&hs.length)?totalValue-totalPrincipal:null;
+  const gpct=(gain!=null&&totalPrincipal>0)?gain/totalPrincipal*100:null;
+  const total=gain!=null?gain+totalDiv:null;
+  const tpct=(total!=null&&totalPrincipal>0)?total/totalPrincipal*100:null;
 
-  $('cPrincipal').textContent = won(totalPrincipal);
-  $('cValue').textContent = (priced&&hs.length) ? won(totalValue) : '—';
-  $('cDiv').textContent = won(totalDiv);
-
-  const g=$('cGain'); g.textContent = gain!=null?won(gain):'— 시세 갱신 필요';
+  $('cPrincipal').textContent=won(totalPrincipal);
+  $('cValue').textContent=(priced&&hs.length)?won(totalValue):'—';
+  $('cDiv').textContent=won(totalDiv);
+  const g=$('cGain'); g.textContent=gain!=null?won(gain):'— 시세 갱신 필요';
   g.className='val '+(gain!=null?cls(gain):'muted');
-  $('cGainPct').textContent = gpct!=null?pct(gpct)+' 수익률':'';
+  $('cGainPct').textContent=gpct!=null?pct(gpct)+' 수익률':'';
   $('cGainPct').className='sub '+(gpct!=null?cls(gpct):'');
-
-  const tt=$('cTotal'); tt.textContent = total!=null?won(total):'—';
+  const tt=$('cTotal'); tt.textContent=total!=null?won(total):'—';
   tt.className='val '+(total!=null?cls(total):'muted');
-  $('cTotalPct').textContent = tpct!=null?pct(tpct):'';
+  $('cTotalPct').textContent=tpct!=null?pct(tpct):'';
   $('cTotalPct').className='sub '+(tpct!=null?cls(tpct):'');
 
-  renderRecords();
+  renderRecords(fbuys,fdivs);
 }
 
-function renderRecords(){
+function renderRecords(fbuys,fdivs){
   const bb=$('buyBody'); bb.innerHTML='';
-  const bs=[...buys].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  for(const b of bs){
-    const tr=document.createElement('tr');
-    tr.innerHTML=`<td>${b.date||''}</td><td class="tk">${b.ticker}</td>`+
-      `<td>${fmtNum(b.shares)}</td><td>${won(b.amount)}</td>`+
+  const bs=[...fbuys].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  for(const b of bs){ const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${b.date||''}</td><td><span class="abadge">${acctOf(b)}</span></td>`+
+      `<td class="tk">${b.ticker}</td><td>${fmtNum(b.shares)}</td><td>${won(b.amount)}</td>`+
       `<td><button class="del" data-id="${b.id}" data-t="buy">✕</button></td>`;
-    bb.appendChild(tr);
-  }
-  if(!buys.length) bb.innerHTML='<tr><td colspan="5" class="empty">기록 없음</td></tr>';
-  $('buyCount').textContent = buys.length?`(${buys.length})`:'';
+    bb.appendChild(tr); }
+  if(!bs.length) bb.innerHTML='<tr><td colspan="6" class="empty">기록 없음</td></tr>';
+  $('buyCount').textContent=bs.length?`(${bs.length})`:'';
 
   const db=$('divBody'); db.innerHTML='';
-  const ds=[...divs].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  for(const d of ds){
-    const tr=document.createElement('tr');
-    tr.innerHTML=`<td>${d.date||''}</td><td class="tk">${d.ticker||'-'}</td>`+
-      `<td>${won(d.amount)}</td>`+
+  const ds=[...fdivs].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  for(const d of ds){ const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${d.date||''}</td><td><span class="abadge">${acctOf(d)}</span></td>`+
+      `<td class="tk">${d.ticker||'-'}</td><td>${won(d.amount)}</td>`+
       `<td><button class="del" data-id="${d.id}" data-t="div">✕</button></td>`;
-    db.appendChild(tr);
-  }
-  if(!divs.length) db.innerHTML='<tr><td colspan="4" class="empty">기록 없음</td></tr>';
-  $('divCount').textContent = divs.length?`(${divs.length})`:'';
+    db.appendChild(tr); }
+  if(!ds.length) db.innerHTML='<tr><td colspan="5" class="empty">기록 없음</td></tr>';
+  $('divCount').textContent=ds.length?`(${ds.length})`:'';
 
   document.querySelectorAll('.del').forEach(btn=>btn.onclick=()=>{
-    const id=btn.dataset.id, t=btn.dataset.t;
+    const id=btn.dataset.id,t=btn.dataset.t;
     if(t==='buy') buys=buys.filter(x=>x.id!=id); else divs=divs.filter(x=>x.id!=id);
-    save(); render();
+    save(); fillAccountUI(); render();
   });
 }
 
@@ -398,29 +446,33 @@ function setStatus(msg,type,show){ const s=$('setStatus'); s.textContent=msg;
   s.className='status '+(type||'')+(show?' show':''); if(show) setTimeout(()=>s.classList.remove('show'),4000); }
 
 $('gearBtn').onclick=()=>openSettings();
+$('acctFilter').onchange=e=>{ curAcct=e.target.value; render(); };
+$('addAcctBtn').onclick=()=>{ const n=addAccount($('newAcct').value); if(n){ $('newAcct').value=''; setStatus('계좌 추가: '+n,'ok',true);} };
+$('newAcct').onkeydown=e=>{ if(e.key==='Enter') $('addAcctBtn').click(); };
+$('bAddAcct').onclick=()=>{ const n=addAccount(prompt('새 계좌 이름')); if(n) $('bAccount').value=n; };
+$('dAddAcct').onclick=()=>{ const n=addAccount(prompt('새 계좌 이름')); if(n) $('dAccount').value=n; };
+
 $('saveSettings').onclick=()=>{
-  const v=$('sheetId').value.trim();
-  settings.sheetId = v || SHEET_ID_DEFAULT;
+  const v=$('sheetId').value.trim(); settings.sheetId=v||SHEET_ID_DEFAULT;
   save(); setStatus('저장됨','ok',true); fetchFeed();
 };
 $('openSheet').onclick=()=>window.open(`https://docs.google.com/spreadsheets/d/${settings.sheetId}/edit`,'_blank');
 $('refreshBtn').onclick=fetchFeed;
 
 $('exportBtn').onclick=()=>{
-  const data=JSON.stringify({buys,divs,exported:new Date().toISOString()},null,2);
+  const data=JSON.stringify({buys,divs,accounts:settings.accounts,exported:new Date().toISOString()},null,2);
   const blob=new Blob([data],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
   a.download='asset-backup-'+new Date().toISOString().slice(0,10)+'.json'; a.click();
 };
 $('importBtn').onclick=()=>$('importFile').click();
 $('importFile').onchange=e=>{
-  const f=e.target.files[0]; if(!f) return;
-  const rd=new FileReader();
-  rd.onload=()=>{ try{
-    const j=JSON.parse(rd.result);
+  const f=e.target.files[0]; if(!f) return; const rd=new FileReader();
+  rd.onload=()=>{ try{ const j=JSON.parse(rd.result);
     if(Array.isArray(j.buys)) buys=j.buys;
     if(Array.isArray(j.divs)) divs=j.divs;
-    save(); render(); setStatus('불러오기 완료','ok',true);
+    if(Array.isArray(j.accounts)&&j.accounts.length) settings.accounts=j.accounts;
+    save(); fillAccountUI(); render(); setStatus('불러오기 완료','ok',true);
   }catch(err){ setStatus('파일을 읽을 수 없습니다','err',true); } };
   rd.readAsText(f); e.target.value='';
 };
@@ -441,16 +493,17 @@ $('addBuy').onclick=()=>{
   if(!t){ alert('종목을 선택하세요 (없으면 구글시트에 추가 후 시세 갱신)'); return; }
   if(isNaN(sh)||isNaN(am)){ alert('수량과 매수금액을 입력하세요'); return; }
   buys.push({id:Date.now()+''+Math.random().toString(36).slice(2,6),
-    date:$('bDate').value||new Date().toISOString().slice(0,10), ticker:t, shares:sh, amount:am});
-  save(); $('bShares').value='';$('bAmount').value=''; render();
+    date:$('bDate').value||new Date().toISOString().slice(0,10),
+    account:$('bAccount').value||DEF_ACCT, ticker:t, shares:sh, amount:am});
+  save(); $('bShares').value='';$('bAmount').value=''; fillAccountUI(); render();
 };
 $('addDiv').onclick=()=>{
   const am=parseFloat($('dAmount').value);
   if(isNaN(am)){ alert('배당금액을 입력하세요'); return; }
   divs.push({id:Date.now()+''+Math.random().toString(36).slice(2,6),
     date:$('dDate').value||new Date().toISOString().slice(0,10),
-    ticker:$('dTicker').value, amount:am});
-  save(); $('dAmount').value=''; render();
+    account:$('dAccount').value||DEF_ACCT, ticker:$('dTicker').value, amount:am});
+  save(); $('dAmount').value=''; fillAccountUI(); render();
 };
 
 /* ---------- 초기화 ---------- */
@@ -458,6 +511,7 @@ $('addDiv').onclick=()=>{
   const today=new Date().toISOString().slice(0,10);
   $('bDate').value=today; $('dDate').value=today;
   $('sheetId').value=settings.sheetId;
+  fillAccountUI();
   render();
   fetchFeed();
 })();
