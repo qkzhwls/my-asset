@@ -47,6 +47,8 @@
   .card.big{grid-column:1 / -1;background:linear-gradient(135deg,#1c2740,#182034)}
   .card.big .val{font-size:28px}
   .up{color:var(--up)} .down{color:var(--down)} .muted{color:var(--sub)}
+  .excash{float:right;font-weight:600;font-size:11px;color:var(--sub);cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+  .excash input{width:auto;margin:0;accent-color:var(--accent)}
 
   section{background:var(--card);border:1px solid var(--line);border-radius:14px;
     padding:14px;margin-bottom:14px}
@@ -109,7 +111,7 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>📊 자산 추적기<span class="v" id="verBadge">v2.8</span></h1>
+    <h1>📊 자산 추적기<span class="v" id="verBadge">v2.9</span></h1>
     <div class="hbtns">
       <button class="btn-p btn-sm" id="refreshBtn">↻ 시세 갱신</button>
       <button class="icon" id="gearBtn" title="설정">⚙</button>
@@ -164,7 +166,9 @@
   <div id="viewAssets">
   <div class="cards">
     <div class="card big">
-      <div class="lbl">총 자산 (평가금액 + 예수금)<span id="cScope" class="abadge" style="margin-left:8px"></span></div>
+      <div class="lbl">총 자산<span id="cScope" class="abadge" style="margin-left:8px"></span>
+        <label class="excash"><input type="checkbox" id="exCash"> 예수금 제외</label>
+      </div>
       <div class="val" id="cAsset">—</div>
       <div class="sub" id="cAssetSub"></div>
     </div>
@@ -555,10 +559,13 @@ function render(){
   const gpct=(gain!=null&&totalPrincipal>0)?gain/totalPrincipal*100:null;
   const total=gain!=null?gain+totalDiv:null;
   const tpct=(total!=null&&totalPrincipal>0)?total/totalPrincipal*100:null;
-  const assetTotal = priced ? totalValue+cash : null;
+  const incCash = !settings.excludeCash;
+  const assetTotal = priced ? totalValue+(incCash?cash:0) : null;
 
   $('cAsset').textContent = assetTotal!=null?won(assetTotal):'—';
-  $('cAssetSub').textContent = `평가 ${won(priced?totalValue:0)} · 예수금 ${won(cash)}`;
+  $('cAssetSub').textContent = incCash
+    ? `평가 ${won(priced?totalValue:0)} · 예수금 ${won(cash)}`
+    : `평가금액만 · 예수금 ${won(cash)} 제외`;
   $('cPrincipal').textContent=won(totalPrincipal);
   $('cValue').textContent=(priced&&hs.length)?won(totalValue):(hs.length?'—':won(0));
   $('cCash').textContent=won(cash);
@@ -653,6 +660,7 @@ function setStatus(msg,type,show){ const s=$('setStatus'); s.textContent=msg;
 
 $('gearBtn').onclick=()=>openSettings();
 $('acctFilter').onchange=e=>{ curAcct=e.target.value; toggleAcctField(); render(); };
+$('exCash').onchange=e=>{ settings.excludeCash=e.target.checked; save(); render(); };
 $('addAcctBtn').onclick=()=>{ const n=addAccount($('newAcct').value); if(n){ $('newAcct').value=''; setStatus('계좌 추가: '+n,'ok',true);} };
 $('newAcct').onkeydown=e=>{ if(e.key==='Enter') $('addAcctBtn').click(); };
 $('bAddAcct').onclick=()=>{ const n=addAccount(prompt('새 계좌 이름')); if(n) $('bAccount').value=n; };
@@ -804,6 +812,7 @@ $('addDiv').onclick=()=>{
   $('bDate').value=today; $('dDate').value=today; $('pStart').value=today;
   $('sheetId').value=settings.sheetId;
   $('writeUrl').value=settings.writeUrl||'';
+  $('exCash').checked=!!settings.excludeCash;
   fillAccountUI();
   toggleAcctField();
   render();
