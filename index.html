@@ -109,7 +109,7 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>📊 자산 추적기<span class="v" id="verBadge">v2.7</span></h1>
+    <h1>📊 자산 추적기<span class="v" id="verBadge">v2.8</span></h1>
     <div class="hbtns">
       <button class="btn-p btn-sm" id="refreshBtn">↻ 시세 갱신</button>
       <button class="icon" id="gearBtn" title="설정">⚙</button>
@@ -211,6 +211,11 @@
   </div><!-- /viewAssets -->
 
   <div id="viewInput" style="display:none">
+  <section id="cashBox">
+    <h2>💵 예수금 (현금)</h2>
+    <div id="cashRows"></div>
+    <p class="hint" style="margin-top:6px">계좌별 현금 잔고 — 총 자산(평가금액 + 예수금)에 반영됩니다.</p>
+  </section>
   <section>
     <div class="tabs">
       <div class="tab on" data-tab="buy" id="tabBuy">＋ 매수</div>
@@ -569,6 +574,23 @@ function render(){
 
   renderRecords(fbuys,fdivs);
   renderPlans();
+  renderCash();
+}
+
+function renderCash(){
+  const box=$('cashRows'); if(!box) return; box.innerHTML='';
+  const accts = curAcct ? [curAcct] : allAccounts();
+  for(const a of accts){
+    const row=document.createElement('div'); row.className='acctrow';
+    row.innerHTML=`<span class="aname">${a}</span>`+
+      `<input class="cashin2" data-a="${a}" type="number" inputmode="numeric" placeholder="예수금 ₩" value="${settings.cash[a]??''}">`;
+    box.appendChild(row);
+  }
+  box.querySelectorAll('.cashin2').forEach(inp=>inp.onchange=()=>{
+    const v=parseFloat(inp.value);
+    if(isNaN(v)) delete settings.cash[inp.dataset.a]; else settings.cash[inp.dataset.a]=v;
+    save(); render();
+  });
 }
 
 function renderPlans(){
